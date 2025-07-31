@@ -1,4 +1,4 @@
-""" fprime.fpp.cli: FPP command line targets
+"""fprime.fpp.cli: FPP command line targets
 
 Processing and command line functions for FPP tools wrappers in fprime-util.
 
@@ -37,29 +37,6 @@ def run_fpp_check(
     )
 
 
-def run_fpp_to_xml(
-    build: "Build",
-    parsed: argparse.Namespace,
-    _: Dict[str, str],
-    __: Dict[str, str],
-    ___: List[str],
-):
-    """Run the fpp-to-xml utility
-
-    Args:
-        build: build directory output
-        parsed: parsed input arguments
-        _: unused cmake_args
-        __: unused make_args
-        ___: unused pass-through arguments
-    """
-    FppUtility("fpp-to-xml").execute(
-        build,
-        parsed.path,
-        args=({}, ["--directory", parsed.directory] if parsed.directory else []),
-    )
-
-
 def run_fpp_to_dict(
     build: "Build",
     parsed: argparse.Namespace,
@@ -67,7 +44,7 @@ def run_fpp_to_dict(
     __: Dict[str, str],
     ___: List[str],
 ):
-    """Run the fpp-to-xml utility
+    """Run the fpp-to-dict utility
 
     Args:
         build: build directory output
@@ -112,12 +89,6 @@ def add_fpp_parsers(
         "-u", "--unconnected", default=None, help="write unconnected ports to file"
     )
 
-    fpp_to_xml_parser = subparsers.add_parser(
-        "fpp-to-xml", help="Run fpp-to-xml utility", parents=[common], add_help=False
-    )
-    fpp_to_xml_group = fpp_to_xml_parser.add_argument_group("fpp-to-xml arguments")
-    fpp_to_xml_group.add_argument("-d", "--directory", help="Output directory")
-
     fpp_to_dict_parser = subparsers.add_parser(
         "fpp-to-dict", help="Run fpp-to-dict utility", parents=[common], add_help=False
     )
@@ -127,10 +98,8 @@ def add_fpp_parsers(
 
     return {
         "fpp-check": run_fpp_check,
-        "fpp-to-xml": run_fpp_to_xml,
         "fpp-to-dict": run_fpp_to_dict,
     }, {
         "fpp-check": check_parser,
-        "fpp-to-xml": fpp_to_xml_parser,
         "fpp-to-dict": fpp_to_dict_parser,
     }
