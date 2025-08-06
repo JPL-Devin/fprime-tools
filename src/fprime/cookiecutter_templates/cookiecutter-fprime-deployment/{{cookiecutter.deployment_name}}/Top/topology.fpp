@@ -49,7 +49,7 @@ module {{cookiecutter.deployment_name}} {
   # Telemetry packets (only used when TlmPacketizer is used)
   # ----------------------------------------------------------------------
 
-    include "{{cookiecutter.deployment_name}}Packets.fppi"
+    # include "{{cookiecutter.deployment_name}}Packets.fppi"
 
   # ----------------------------------------------------------------------
   # Direct graph specifiers
@@ -87,7 +87,6 @@ module {{cookiecutter.deployment_name}} {
       
       # ComStub <-> ComDriver (Downlink)
       ComCcsds.comStub.drvSendOut      -> comDriver.$send
-      comDriver.sendReturnOut -> ComCcsds.comStub.drvSendReturnIn
       comDriver.ready         -> ComCcsds.comStub.drvConnected
     }
 
