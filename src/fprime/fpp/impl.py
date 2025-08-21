@@ -6,6 +6,7 @@ Processing and CLI entry points for `fprime-util impl` command line tool.
 """
 
 import argparse
+import glob
 import os
 import tempfile
 from pathlib import Path
@@ -79,6 +80,7 @@ def fpp_generate_implementation(
     apply_formatting: bool,
     generate_ut: bool,
     generate_test_helpers: bool = False,
+    overwrite: bool = False,
 ) -> int:
     """
     Generate implementation files from FPP templates.
@@ -90,6 +92,7 @@ def fpp_generate_implementation(
         apply_formatting: Whether to format the generated files using clang-format
         generate_ut: Generates UT files if set to True
         generate_test_helpers: Generate of test helper code if set to True
+        overwrite: Overwrite existing implementation files if set to True
     """
 
     prefixes = [
@@ -137,6 +140,12 @@ def fpp_generate_implementation(
     if generate_ut:
         _move_ut_templates(output_dir, generated_file_names)
 
+    if overwrite:
+        file_list = glob.glob(f"{output_dir}/*.template.*pp", recursive=False)
+        for filename in file_list:
+            new_filename = filename.replace(".template", "")
+            os.rename(filename, new_filename)
+
     return 0
 
 
@@ -164,6 +173,7 @@ def run_fpp_impl(
         not parsed.no_format,
         parsed.ut,
         parsed.generate_test_helpers,
+        parsed.overwrite,
     )
 
 
@@ -205,6 +215,13 @@ def add_fpp_impl_parsers(
         action="store_true",
         default=False,
         help="Generate test helper code for hand-coding. Default to False, leveraging the test helpers autocoded by FPP.",
+        required=False,
+    )
+    impl_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        default=False,
+        help="Overwrite contents of current CPP and HPP files. Use with caution.",
         required=False,
     )
     return {"impl": run_fpp_impl}, {"impl": impl_parser}

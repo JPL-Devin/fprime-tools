@@ -28,13 +28,14 @@ def run_impl(build: Build, source_path: Path):
     print("Refreshing cache and generating implementation files...")
 
     with suppress_stdout():
-        fpp_generate_implementation(build, source_path, source_path, True, False)
-
-    # Path(source_path).
-    file_list = glob.glob(f"{source_path}/*.template.*pp", recursive=False)
-    for filename in file_list:
-        new_filename = filename.replace(".template", "")
-        os.rename(filename, new_filename)
+        fpp_generate_implementation(
+            build,
+            source_path,
+            source_path,
+            apply_formatting=True,
+            generate_ut=False,
+            overwrite=True,
+        )
 
     return True
 
