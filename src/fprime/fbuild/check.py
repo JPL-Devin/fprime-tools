@@ -9,6 +9,7 @@ import subprocess
 import sys
 from typing import Tuple, Dict, List
 
+from fprime.fbuild.types import NoTargetFoundException
 from fprime.fbuild.target import (
     TargetContext,
     TargetScope,
@@ -50,6 +51,15 @@ class Check(EnumeratedAction):
         args: Tuple[Dict[str, str], List[str], Dict[str, bool]],
     ):
         """Execute this target"""
+
+        if not context:
+            # This only happens if the provided path does not contain tests
+            # and neither '--all' nor '--recursive' were provided
+            raise NoTargetFoundException(
+                "No tests were found in the given context. Did you mean to "
+                "use `fprime-util check --recursive` or `--all` ?"
+            )
+
         cli_args = [
             self.EXECUTABLE,
             "--test-dir",
@@ -70,6 +80,7 @@ class Check(EnumeratedAction):
             context and context != ["all"] and ".*" not in context
         ):
             cli_args.append("-V")
+
         # When not "all" append a regex to filter tests. .* works as a regex
         if context and context != ["all"]:
             test_regex = f"^({'|'.join(context)})$"
