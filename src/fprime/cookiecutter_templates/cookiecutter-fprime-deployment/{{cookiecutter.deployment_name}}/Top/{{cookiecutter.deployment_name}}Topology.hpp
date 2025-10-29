@@ -9,9 +9,7 @@
 // autocoder, but are also used in this hand-coded topology.
 #include <{{cookiecutter.__include_path_prefix}}{{cookiecutter.deployment_name}}/Top/{{cookiecutter.deployment_name}}TopologyDefs.hpp>
 
-// Remove unnecessary {{cookiecutter.deployment_name}}:: qualifications
-using namespace {{cookiecutter.deployment_name}};
-namespace {{cookiecutter.deployment_name}} {
+namespace {{cookiecutter.deployment_namespace}} {
 /**
  * \brief initialize and run the F´ topology
  *
@@ -53,7 +51,7 @@ void setupTopology(const TopologyState& state);
  * Step 1, 2, 3, and 4 must occur in-order as the tasks must be stopped before being joined. These tasks must be stopped
  * and joined before any active resources may be deallocated.
  *
- * For an explanation of the required type {{cookiecutter.deployment_name}}::TopologyState see: {{cookiecutter.deployment_name}}TopologyDefs.hpp.
+ * For an explanation of the required type {{cookiecutter.deployment_namespace}}::TopologyState see: {{cookiecutter.deployment_namespace}}TopologyDefs.hpp.
  *
  * \param state: state object provided to setupTopology
  */
@@ -80,5 +78,5 @@ void startRateGroups(const Fw::TimeInterval& interval = Fw::TimeInterval(1,0));
  */
 void stopRateGroups();
 
-} // namespace {{cookiecutter.deployment_name}}
+} // namespace {{cookiecutter.deployment_namespace}}
 #endif

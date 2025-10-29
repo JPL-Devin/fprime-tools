@@ -11,8 +11,9 @@
 // Necessary project-specified types
 #include <Fw/Types/MallocAllocator.hpp>
 
-// Allows easy reference to objects in FPP/autocoder required namespaces
-using namespace {{cookiecutter.deployment_name}};
+// Public functions for use in main program are namespaced with deployment module {{cookiecutter.deployment_namespace}}
+// This is also the namespace where the topology components are instantiated by FPP.
+namespace {{cookiecutter.deployment_namespace}} {
 
 // Instantiate a malloc allocator for cmdSeq buffer allocation
 Fw::MallocAllocator mallocator;
@@ -50,8 +51,6 @@ void configureTopology() {
     cmdSeq.allocateBuffer(0, mallocator, 5 * 1024);
 }
 
-// Public functions for use in main program are namespaced with deployment name {{cookiecutter.deployment_name}}
-namespace {{cookiecutter.deployment_name}} {
 void setupTopology(const TopologyState& state) {
     // Autocoded initialization. Function provided by autocoder.
     initComponents(state);
@@ -128,4 +127,4 @@ void teardownTopology(const TopologyState& state) {
 
     tearDownComponents(state);
 }
-};  // namespace {{cookiecutter.deployment_name}}
+};  // namespace {{cookiecutter.deployment_namespace}}
