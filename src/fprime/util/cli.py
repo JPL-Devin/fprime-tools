@@ -251,6 +251,14 @@ def add_special_parsers(
         default=[],
         help="If specified, --pass-through must be the last argument. Remaining arguments passed to underlying executable",
     )
+    format_parser.add_argument(
+        "--exclude",
+        nargs="+",
+        default=[],
+        type=Path,
+        help="Exclude paths from formatting, taking precedence over all input mechanisms",
+    )
+
     return {
         "hash-to-file": run_hash_to_file,
         "info": run_info,

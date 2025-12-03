@@ -73,6 +73,21 @@ class ClangFormatter(ExecutableAction):
         else:
             self._files_to_format.append(filepath)
 
+    def exclude_file(self, filepath: Path) -> None:
+        """Request ClangFormatter to exclude the file for formatting.
+        If the file exists and its extension matches a known C/C++ format,
+        it will be excluded to clang-format when the execute() function is called.
+
+        Args:
+            filepath (str): file path to be excluded.
+        """
+        if filepath in self._files_to_format:
+            if self.verbose:
+                print(f"[INFO] Excluding {filepath} from formatting.")
+            self._files_to_format.remove(filepath)
+        elif self.verbose:
+            print(f"[INFO] {filepath} was not staged for formatting. Skipping.")
+
     def execute(
         self, builder: "Build", context: "Path", args: Tuple[Dict[str, str], List[str]]
     ):
