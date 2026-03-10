@@ -23,7 +23,11 @@ jobs:
         - python-version: 3.13
           fprime-version: v3.4.3
         - python-version: 3.13
-          fprime-version: v3.5.1          
+          fprime-version: v3.5.1
+        - python-version: 3.12
+          fprime-version: v3.4.3
+        - python-version: 3.12
+          fprime-version: v3.5.1
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
