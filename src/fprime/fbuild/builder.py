@@ -295,11 +295,16 @@ class Build:
                 if os.path.exists(toolchain_path)
             }
         )
+
         if not toolchains:
-            msg = f"Could not find toolchain file for {self.platform} at any of: {' '.join(toolchains_paths)}"
+            searched_toolchain_paths = "\n" + "\n".join(
+                path.removesuffix(f"{self.platform}.cmake") for path in toolchains_paths
+            )
+            msg = f"Could not find any toolchain file called {self.platform}.cmake after attempting to search for the file at the following locations: {searched_toolchain_paths}"
             raise NoSuchToolchainException(msg)
         if len(toolchains) > 1:
-            msg = f"Found conflicting toolchain files for {self.platform} at: {' '.join(toolchains)}"
+            conflicting_toolchain_paths = "\n\n" + "\n".join(toolchains)
+            msg = f"Found conflicting toolchain files for the toolchain file called {self.platform} in the following locations: {conflicting_toolchain_paths}"
             raise AmbiguousToolchainException(msg)
         return toolchains[0]
 
