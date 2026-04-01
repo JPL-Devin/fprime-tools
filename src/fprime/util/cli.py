@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Callable, Dict
 
 from fprime.fbuild.builder import GenerateException, UnableToDetectProjectException
+from fprime.fbuild.settings import FprimeLocationUnknownException
 from fprime.fbuild.cli import add_fbuild_parsers
 from fprime.fbuild.target import Target
 from fprime.fpp.cli import add_fpp_parsers
@@ -34,11 +35,19 @@ def utility_entry(args):
     parsed, cmake_args, make_args, parser, runners = parse_args(args)
 
     try:
-        build = (
-            None
-            if skip_build_loading(parsed)
-            else load_build(parsed, skip_build_cache_validation(parsed))
-        )
+        if skip_build_loading(parsed):
+            build = None
+        else:
+            try:
+                build = load_build(parsed, skip_build_cache_validation(parsed))
+            except (
+                UnableToDetectProjectException,
+                FprimeLocationUnknownException,
+            ):
+                if parsed.command == "format":
+                    build = None
+                else:
+                    raise
 
         # runners is a Dict[str, Callable] of {command_name: handler_functions} pairs
         return runners[parsed.command](
