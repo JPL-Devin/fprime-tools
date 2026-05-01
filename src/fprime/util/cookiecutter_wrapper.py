@@ -317,6 +317,54 @@ def new_module(build: Build, parsed_args: "argparse.Namespace", source=None):
     return 0
 
 
+def new_rule_based_testing(build: Build, parsed_args: "argparse.Namespace"):
+    """Creates a new rules based testing scaffold using cookiecutter"""
+
+    cwd = Path.cwd()
+    if cwd.name == "ut" and cwd.parent.name == "test":
+        print(
+            "[ERROR] Wrong location. Cannot be run from the test/ut directory."
+            " Please navigate to the component directory and try again."
+        )
+        return 1
+
+    source = (
+        os.path.dirname(__file__)
+        + "/../cookiecutter_templates/cookiecutter-fprime-rules-test"
+    )
+    # Extra contextual information for cookiecutter
+    extra_context = {}
+    rel_path = get_directory_path_relative_to_root(build)
+    extra_context["__include_path_prefix"] = f"{rel_path}" if rel_path else ""
+    cwd = Path.cwd()
+
+    extra_context["_component_name"] = cwd.name
+    extra_context["_component_namespace"] = (
+        cwd.parent.parent.name if cwd.parent.name == "Components" else cwd.name
+    )
+    try:
+        print(extra_context)
+        gen_path = Path(
+            cookiecutter(
+                source,
+                extra_context=extra_context,
+                overwrite_if_exists=True,  # needed to add to existing test/ut directory
+                skip_if_file_exists=True,  # safety
+            )
+        ).resolve()
+    except OutputDirExistsException as out_directory_error:
+        print(
+            f"{out_directory_error}. Use --overwrite to overwrite (will not delete non-generated files).",
+            file=sys.stderr,
+        )
+        return 1
+    print(
+        f"[INFO] Rule-based test scaffold successfully created in {gen_path}/test/ut/ \n"
+        "[INFO] For next steps, refer to the F Prime How-To Guide on Rule-Based Testing"
+    )
+    return 0
+
+
 def register_with_cmake(gen_path: Path, proj_root: Path, cmake_root: Path):
     cmake_file = find_nearest_cmake_file(gen_path, cmake_root, proj_root)
     if cmake_file is None or not add_to_cmake(

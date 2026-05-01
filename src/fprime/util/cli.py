@@ -53,7 +53,7 @@ def utility_entry(args):
     except UnableToDetectProjectException:
         print(f"[ERROR] Could not detect project directory for: {parsed.path}")
     except Exception as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
+        print(f"[ERROR] {exc.__class__.__name__}: {exc}", file=sys.stderr)
     return 1
 
 
@@ -197,6 +197,13 @@ def add_special_parsers(
         action="store_true",
         dest="new_subtopology",
         help="Generate a new subtopology",
+    )
+    new_exclusive.add_argument(
+        "--rule-based-test",
+        default=False,
+        action="store_true",
+        dest="new_rule_based_testing",
+        help="Generate a new Rule-Based Testing (RBT) scaffold",
     )
     new_exclusive.add_argument(
         "--from-source",
