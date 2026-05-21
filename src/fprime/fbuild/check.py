@@ -11,14 +11,13 @@ from typing import Tuple, Dict, List
 
 from fprime.fbuild.types import NoTargetFoundException
 from fprime.fbuild.target import (
-    TargetContext,
     TargetScope,
     EnumeratedAction,
     CompositeTarget,
 )
 
 from fprime.fbuild.target import BuildSystemTarget
-from .enumerator import BuildTargetEnumerator
+from .enumerator import BuildTargetEnumerator, EnumeratedContext
 
 
 class Check(EnumeratedAction):
@@ -32,7 +31,7 @@ class Check(EnumeratedAction):
         """Initialize this action with the test enumerator"""
         super().__init__(scope=scope, build_target_enumerator=build_target_enumerator)
 
-    def any_supported(self, builder: "Build", context: TargetContext):
+    def any_supported(self, builder: "Build", context_with_path: EnumeratedContext):
         """Check if this target is supported in the given context
 
         This will determine if two conditions are met:
@@ -42,15 +41,22 @@ class Check(EnumeratedAction):
         if not bool(shutil.which(self.EXECUTABLE)):
             print("[ERROR] CTest not found", file=sys.stderr)
             return False
+        context, _ = context_with_path
         return len(context) > 0
 
     def execute_all(
         self,
         builder: "Build",
-        context: TargetContext,
+        context_with_path: EnumeratedContext,
         args: Tuple[Dict[str, str], List[str], Dict[str, bool]],
     ):
         """Execute this target"""
+        context, context_path = context_with_path
+        test_directory = (
+            builder.get_build_cache_path(context_path)
+            if context_path
+            else builder.build_dir
+        )
 
         if not context:
             # This only happens if the provided path does not contain tests
@@ -63,7 +69,7 @@ class Check(EnumeratedAction):
         cli_args = [
             self.EXECUTABLE,
             "--test-dir",
-            str(builder.build_dir),
+            str(test_directory),
             "--no-tests=error",
         ]
         make_args = args[0]
@@ -81,6 +87,7 @@ class Check(EnumeratedAction):
         ):
             cli_args.append("-V")
 
+        print(f"[INFO] Running CTest with context: {context}")
         # When not "all" append a regex to filter tests. .* works as a regex
         if context and context != ["all"]:
             test_regex = f"^({'|'.join(context)})$"

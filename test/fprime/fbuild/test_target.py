@@ -80,7 +80,7 @@ def test_enumerated_action_execution(mock_builder):
         def execute_all(self, builder, context, args):
             pass  # This will be mocked
 
-        def any_supported(self, builder, context):
+        def any_supported(self, builder, context_with_path):
             return True
 
     action = ConcreteEnumeratedAction(TargetScope.LOCAL, mock_enumerator)
@@ -97,14 +97,14 @@ def test_enumerated_action_execution(mock_builder):
 def test_enumerated_action_is_supported(mock_builder):
     """Test that EnumeratedAction.is_supported calls the enumerator and any_supported"""
     mock_enumerator = MagicMock(spec=BuildTargetEnumerator)
-    enumerated_results = ["target1", "target2"]
+    enumerated_results = ["target1", "target2"], Path("/path/to/context")
     mock_enumerator.enumerate.return_value = enumerated_results
 
     class ConcreteEnumeratedAction(EnumeratedAction):
         def execute_all(self, builder, context, args):
             pass
 
-        def any_supported(self, builder, context):
+        def any_supported(self, builder, context_with_path):
             return True  # This will be mocked
 
     action = ConcreteEnumeratedAction(TargetScope.LOCAL, mock_enumerator)

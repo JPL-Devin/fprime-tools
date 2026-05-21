@@ -11,9 +11,13 @@ Note: this file was created with the help of generative AI.
 from abc import ABC, abstractmethod
 from argparse import Action
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 from .types import MissingBuildCachePath
+
+
+EnumeratedContext = Tuple[List[str], Path]
+""" Context for enumeration calls (execute_all, any_supported) """
 
 
 class DesignateTargetAction(Action):
@@ -45,7 +49,7 @@ class BuildTargetEnumerator(ABC):
     """Abstract base class for target enumeration strategies."""
 
     @abstractmethod
-    def enumerate(self, builder: "Build", context_path: Path) -> List[str]:
+    def enumerate(self, builder: "Build", context_path: Path) -> EnumeratedContext:
         """Enumerates build targets available in the given context path."""
         raise NotImplementedError()
 
@@ -65,9 +69,9 @@ class BasicBuildTargetEnumerator(BuildTargetEnumerator):
             return [module]
         return [self.target_suffix]
 
-    def enumerate(self, builder: "Build", context_path: Path) -> List[str]:
+    def enumerate(self, builder: "Build", context_path: Path) -> EnumeratedContext:
         """Enumerate through conversion to cmake module name directly"""
-        return self.enumerate_helper(builder, context_path)
+        return self.enumerate_helper(builder, context_path), context_path
 
 
 class MultiBuildTargetEnumerator(BuildTargetEnumerator):
@@ -97,10 +101,10 @@ class MultiBuildTargetEnumerator(BuildTargetEnumerator):
             enumerated_targets = [line.strip() for line in file_handle.readlines()]
         return enumerated_targets
 
-    def enumerate(self, builder: "Build", context_path: Path) -> List[str]:
+    def enumerate(self, builder: "Build", context_path: Path) -> EnumeratedContext:
         """Enumerates build targets, falling back to the context if not found."""
         try:
-            return self.enumerate_helper(builder, context_path)
+            return self.enumerate_helper(builder, context_path), context_path
         # should an error occur, delegate to a basic enumeration strategy
         except (MissingBuildCachePath, FileNotFoundError):
             return self.fail_safe_enumerator.enumerate(builder, context_path)
@@ -147,15 +151,15 @@ class RecursiveMultiBuildTargetEnumerator(BuildTargetEnumerator):
             pass
         return enumerated_targets
 
-    def enumerate(self, builder: "Build", context_path: Path) -> List[str]:
+    def enumerate(self, builder: "Build", context_path: Path) -> EnumeratedContext:
         """Recursively enumerates build targets."""
         enumerated_targets = self.enumerate_helper(builder, context_path)
         enumerated_targets = (
             enumerated_targets
             if enumerated_targets
-            else self.directory_enumerator.enumerate(builder, context_path)
+            else self.directory_enumerator.enumerate(builder, context_path)[0]
         )
-        return enumerated_targets
+        return enumerated_targets, context_path
 
 
 class SpecificBuildTargetEnumerator(BuildTargetEnumerator):
@@ -169,9 +173,9 @@ class SpecificBuildTargetEnumerator(BuildTargetEnumerator):
         """Set the build targets"""
         self.build_targets = build_targets
 
-    def enumerate(self, builder: "Build", context_path: Path) -> List[str]:
+    def enumerate(self, builder: "Build", context_path: Path) -> EnumeratedContext:
         """Enumerates exactly a build target"""
-        return self.build_targets
+        return self.build_targets, context_path
 
 
 class CliBuildTargetEnumerator(SpecificBuildTargetEnumerator):
