@@ -9,9 +9,11 @@ that they function as expected.
 
 import os
 import pathlib
+from unittest.mock import patch
 
 import fprime.fbuild.builder
 import fprime.fbuild.cmake
+import fprime.fbuild.types
 import pytest
 
 
@@ -196,3 +198,86 @@ def test_find_nearest_parent_project():
         else:
             with pytest.raises(fprime.fbuild.builder.UnableToDetectProjectException):
                 fprime.fbuild.builder.Build.find_nearest_parent_project(path)
+
+
+def _make_build(tmp_path, locations_content=None):
+    """Helper to create a Build with a minimal fake build cache directory.
+
+    Bypasses CMake and settings loading to isolate _load_build_cache_locations.
+    If locations_content is not None, writes it to fprime-locations.fprime-util
+    inside tmp_path.
+    """
+    if locations_content is not None:
+        (tmp_path / "fprime-locations.fprime-util").write_text(locations_content)
+    with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
+        build = fprime.fbuild.builder.Build(
+            fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+        )
+    build.build_dir = tmp_path
+    build._build_cache_locations = build._load_build_cache_locations()
+    return build
+
+
+def test_get_build_cache_locations_no_file(tmp_path):
+    """When fprime-locations.fprime-util is absent, fall back to F-Prime/ and build_dir."""
+    build = _make_build(tmp_path)
+    locations = build.get_build_cache_locations()
+    assert locations == [
+        (tmp_path / "F-Prime").resolve(),
+        tmp_path.resolve(),
+    ]
+
+
+def test_get_build_cache_locations_with_file(tmp_path):
+    """When fprime-locations.fprime-util exists, read paths from it."""
+    # Create directories that will be listed in the file
+    rel_dir = tmp_path / "my-lib"
+    rel_dir.mkdir()
+    abs_dir = tmp_path / "abs-lib"
+    abs_dir.mkdir()
+
+    content = f"# comment line\n my-lib\n\n{abs_dir}\n"
+    build = _make_build(tmp_path, locations_content=content)
+    locations = build.get_build_cache_locations()
+    assert locations == [rel_dir.resolve(), abs_dir.resolve()]
+
+
+def test_get_build_cache_locations_empty_file(tmp_path):
+    """An empty locations file is a corrupt build cache and should raise."""
+    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException):
+        _make_build(tmp_path, locations_content="\n")
+
+
+def test_get_build_cache_locations_no_valid_paths(tmp_path):
+    """A file listing only non-existent (but in-cache) relative paths should raise."""
+    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException):
+        _make_build(tmp_path, locations_content="does-not-exist\n")
+
+
+def test_get_build_cache_locations_comments_only(tmp_path):
+    """A file with only comments and blank lines should raise."""
+    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException):
+        _make_build(tmp_path, locations_content="# just a comment\n\n  \n")
+
+
+def test_get_build_cache_locations_stripped_spaces(tmp_path):
+    """Lines with leading/trailing whitespace should be stripped correctly."""
+    d = tmp_path / "spaced-lib"
+    d.mkdir()
+    build = _make_build(tmp_path, locations_content="  spaced-lib  \n")
+    assert build.get_build_cache_locations() == [d.resolve()]
+
+
+def test_get_build_cache_locations_mixed_valid_invalid(tmp_path):
+    """Valid paths are kept; non-existent paths are silently filtered out."""
+    valid = tmp_path / "exists"
+    valid.mkdir()
+    content = "exists\nmissing-dir\n"
+    build = _make_build(tmp_path, locations_content=content)
+    assert build.get_build_cache_locations() == [valid.resolve()]
+
+
+def test_get_build_cache_locations_outside_build_dir(tmp_path):
+    """A path resolving outside the build cache should raise (security)."""
+    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException, match="outside"):
+        _make_build(tmp_path, locations_content="../escape\n")
