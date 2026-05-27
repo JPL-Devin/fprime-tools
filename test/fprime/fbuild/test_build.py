@@ -9,7 +9,7 @@ that they function as expected.
 
 import os
 import pathlib
-import sys
+
 from unittest.mock import patch
 
 import fprime.fbuild.builder
@@ -367,7 +367,7 @@ def test_load_settings_from_cache_empty_library_locations(tmp_path):
 
 def test_load_settings_from_cache_inconsistency_raises(tmp_path):
     """A hard error is raised when settings and cache values differ."""
-    fw_path = _setup_fprime_project(tmp_path)
+    _setup_fprime_project(tmp_path)
 
     cache = "FPRIME_FRAMEWORK_PATH:PATH=/different/fprime\n"
     (tmp_path / "CMakeCache.txt").write_text(cache)

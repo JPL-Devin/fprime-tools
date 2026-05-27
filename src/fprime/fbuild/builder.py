@@ -6,7 +6,6 @@ build system handler underneath.
 import copy
 import os
 import re
-import sys
 from pathlib import Path
 from typing import Iterable, List, Union
 
@@ -139,7 +138,7 @@ class Build:
                 try:
                     self._load_settings_from_cache()
                 except (InvalidBuildCacheException, CMakeException):
-                    pass
+                    pass  # Best-effort: cache may be missing or stale
             return
         # Validate this is a build cache by finding either of two known files
         # One is from F´, other from CMake, for redundancy

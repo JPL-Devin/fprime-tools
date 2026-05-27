@@ -41,5 +41,8 @@ value="(?:[0-9a-f]{1,2} )*"
 # Ignore string sequence if it is assigned to a variable and has special symbols | \ / % * & %
 =\s*["'].*[\|\\\/\#\*\&\%].*["']
 
+# Ignore escape sequences followed by a word (e.g. \nframework in string literals)
+\\n[a-zA-Z]+
+
 # Ignore any text between inline back-ticks
 `(.*?)`
