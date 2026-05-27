@@ -245,7 +245,7 @@ class Build:
         for (cache_var, setting_key), cache_value in zip(
             Build.CACHE_SETTING_MAP, cache
         ):
-            if cache_value is None:
+            if cache_value is None or cache_value == "":
                 continue
 
             # Convert cache string to appropriate type matching settings.ini types
