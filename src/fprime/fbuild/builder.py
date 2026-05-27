@@ -4,6 +4,7 @@ build system handler underneath.
 """
 
 import copy
+import glob
 import os
 import re
 import warnings
@@ -418,34 +419,11 @@ class Build:
         seen = set()
         results: List[str] = []
         for pattern in glob_patterns:
-            if "*" in pattern:
-                # Find the topmost directory without a wildcard
-                parts = Path(pattern).parts
-                base_parts = []
-                glob_suffix_parts = []
-                found_wildcard = False
-                for part in parts:
-                    if not found_wildcard and "*" not in part:
-                        base_parts.append(part)
-                    else:
-                        found_wildcard = True
-                        glob_suffix_parts.append(part)
-                base = Path(*base_parts) if base_parts else Path(".")
-                glob_suffix = str(Path(*glob_suffix_parts))
-                if base.is_dir():
-                    for match in base.glob(glob_suffix):
-                        resolved = str(match.resolve())
-                        if resolved not in seen:
-                            seen.add(resolved)
-                            results.append(resolved)
-            else:
-                # Direct path check (no wildcard)
-                p = Path(pattern)
-                if p.is_file():
-                    resolved = str(p.resolve())
-                    if resolved not in seen:
-                        seen.add(resolved)
-                        results.append(resolved)
+            for match in glob.glob(pattern):
+                resolved = str(Path(match).resolve())
+                if resolved not in seen:
+                    seen.add(resolved)
+                    results.append(resolved)
 
         return results
 
