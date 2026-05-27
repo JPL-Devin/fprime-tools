@@ -137,7 +137,10 @@ class Build:
             if self.build_dir is not None and (
                 (self.build_dir / "CMakeCache.txt").exists()
             ):
-                self._load_settings_from_cache()
+                try:
+                    self._load_settings_from_cache()
+                except InvalidBuildCacheException:
+                    pass
             return
         # Validate this is a build cache by finding either of two known files
         # One is from F´, other from CMake, for redundancy
