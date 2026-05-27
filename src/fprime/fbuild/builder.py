@@ -374,48 +374,43 @@ class Build:
         library_locations = self.get_settings("library_locations", [])
 
         filename = f"{name}.cmake"
+
+        def _cmake_path(*parts):
+            return str(Path(*parts) / "cmake" / cmake_type / filename)
+
+        # Build ordered search patterns — highest priority first
         glob_patterns: List[str] = []
 
         # 1. Project direct
-        glob_patterns.append(str(project_source_dir / "cmake" / cmake_type / filename))
+        glob_patterns += [_cmake_path(project_source_dir)]
 
         # 2. Backwards compat: legacy project root (only when defined, non-empty,
         #    and differs from PROJECT_SOURCE_DIR). Slated for removal.
-        if (
+        _project_root_differs = (
             project_root is not None
             and str(project_root) != ""
             and Path(project_root).resolve() != project_source_dir.resolve()
-        ):
-            glob_patterns.append(
-                str(Path(project_root) / "cmake" / cmake_type / filename)
-            )
+        )
+        glob_patterns += [_cmake_path(project_root)] if _project_root_differs else []
 
         # 3. Project libraries (lib/) — single level wildcard
-        glob_patterns.append(
-            str(project_source_dir / "lib" / "*" / "cmake" / cmake_type / filename)
-        )
+        glob_patterns += [_cmake_path(project_source_dir / "lib" / "*")]
 
         # 4. Project subdirectories — single level wildcard
-        glob_patterns.append(
-            str(project_source_dir / "*" / "cmake" / cmake_type / filename)
-        )
+        glob_patterns += [_cmake_path(project_source_dir / "*")]
 
         # 5. Backwards compat: explicit library locations (only when defined and
         #    non-empty). Slated for removal.
-        if library_locations:
-            for lib_loc in library_locations:
-                if lib_loc is not None and str(lib_loc) != "":
-                    glob_patterns.append(
-                        str(Path(lib_loc) / "cmake" / cmake_type / filename)
-                    )
+        glob_patterns += [
+            _cmake_path(loc)
+            for loc in library_locations
+            if loc is not None and str(loc) != ""
+        ]
 
         # 6. Framework fallback
-        if framework_path is not None:
-            glob_patterns.append(
-                str(Path(framework_path) / "cmake" / cmake_type / filename)
-            )
+        glob_patterns += [_cmake_path(framework_path)] if framework_path else []
 
-        # Glob each pattern individually, preserving priority order
+        # Glob each pattern individually, preserving priority order and deduplicating
         seen = set()
         results: List[str] = []
         for pattern in glob_patterns:
