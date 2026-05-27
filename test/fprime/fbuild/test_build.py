@@ -9,6 +9,7 @@ that they function as expected.
 
 import os
 import pathlib
+
 from unittest.mock import patch
 
 import fprime.fbuild.builder
@@ -281,3 +282,139 @@ def test_get_build_cache_locations_outside_build_dir(tmp_path):
     """A path resolving outside the build cache should raise (security)."""
     with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException, match="outside"):
         _make_build(tmp_path, locations_content="../escape\n")
+
+
+# --- Tests for _load_settings_from_cache ---
+
+
+def _setup_fprime_project(tmp_path, settings_ini_content=None):
+    """Create a minimal fprime project structure in tmp_path for testing."""
+    fw_path = tmp_path / "fprime"
+    fw_path.mkdir()
+    (fw_path / "cmake").mkdir()
+    (fw_path / "cmake" / "FPrime.cmake").touch()
+    (tmp_path / "CMakeLists.txt").write_text("project(TestProject)\n")
+    settings_ini = tmp_path / "settings.ini"
+    if settings_ini_content is not None:
+        settings_ini.write_text(settings_ini_content)
+    else:
+        settings_ini.write_text(f"[fprime]\nframework_path = {fw_path}\n")
+    return fw_path
+
+
+def _make_build_with_cache(tmp_path, cache_content, settings_ini_content=None):
+    """Helper to create a Build with a fake CMake cache for testing cache loading.
+
+    Creates a CMakeCache.txt in tmp_path with the given content, sets up a minimal
+    fprime project structure, and loads the build.
+    """
+    _setup_fprime_project(tmp_path, settings_ini_content)
+    (tmp_path / "CMakeCache.txt").write_text(cache_content)
+    (tmp_path / ".fprime-build-dir").touch()
+
+    build = fprime.fbuild.builder.Build(
+        fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    )
+    build.load(build_dir=tmp_path)
+    return build
+
+
+def test_load_settings_from_cache_basic(tmp_path):
+    """Settings are loaded from the CMake cache during load()."""
+    fw_path = tmp_path / "fprime"
+    # project_root default = framework_path, install_destination default = cmake_root/build-artifacts
+    cache = (
+        f"FPRIME_FRAMEWORK_PATH:PATH={fw_path}\n"
+        f"FPRIME_PROJECT_ROOT:PATH={fw_path}\n"
+        f"FPRIME_INSTALL_DEST:PATH={tmp_path / 'build-artifacts'}\n"
+    )
+    build = _make_build_with_cache(tmp_path, cache)
+
+    assert build.settings["framework_path"] == fw_path
+    assert build.settings["project_root"] == fw_path
+    assert build.settings["install_destination"] == tmp_path / "build-artifacts"
+
+
+def test_load_settings_from_cache_library_locations(tmp_path):
+    """Library locations (semicolon-separated) are parsed correctly from cache."""
+    fw_path = tmp_path / "fprime"
+    # Create library dirs so settings.ini path validation passes
+    for name in ["lib_a", "lib_b", "lib_c"]:
+        (tmp_path / name).mkdir()
+    lib_paths = [tmp_path / "lib_a", tmp_path / "lib_b", tmp_path / "lib_c"]
+    lib_str = ":".join(str(p) for p in lib_paths)
+    cache_lib_str = ";".join(str(p) for p in lib_paths)
+    ini_content = (
+        f"[fprime]\nframework_path = {fw_path}\n" f"library_locations = {lib_str}\n"
+    )
+    cache = (
+        f"FPRIME_FRAMEWORK_PATH:PATH={fw_path}\n"
+        f"FPRIME_LIBRARY_LOCATIONS:PATH={cache_lib_str}\n"
+    )
+    build = _make_build_with_cache(tmp_path, cache, settings_ini_content=ini_content)
+
+    assert build.settings["library_locations"] == lib_paths
+
+
+def test_load_settings_from_cache_empty_library_locations(tmp_path):
+    """Empty library locations in cache results in empty list."""
+    fw_path = tmp_path / "fprime"
+    cache = f"FPRIME_FRAMEWORK_PATH:PATH={fw_path}\n" "FPRIME_LIBRARY_LOCATIONS:PATH=\n"
+    build = _make_build_with_cache(tmp_path, cache)
+
+    assert build.settings["library_locations"] == []
+
+
+def test_load_settings_from_cache_inconsistency_raises(tmp_path):
+    """A hard error is raised when settings and cache values differ."""
+    _setup_fprime_project(tmp_path)
+
+    cache = "FPRIME_FRAMEWORK_PATH:PATH=/different/fprime\n"
+    (tmp_path / "CMakeCache.txt").write_text(cache)
+    (tmp_path / ".fprime-build-dir").touch()
+
+    build = fprime.fbuild.builder.Build(
+        fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    )
+    with pytest.raises(
+        fprime.fbuild.types.InvalidBuildCacheException, match="generate -f"
+    ):
+        build.load(build_dir=tmp_path)
+
+
+def test_load_settings_from_cache_no_error_when_consistent(tmp_path):
+    """No error when settings and cache values match."""
+    fw_path = _setup_fprime_project(tmp_path)
+
+    cache = f"FPRIME_FRAMEWORK_PATH:PATH={fw_path}\n"
+    (tmp_path / "CMakeCache.txt").write_text(cache)
+    (tmp_path / ".fprime-build-dir").touch()
+
+    build = fprime.fbuild.builder.Build(
+        fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    )
+    build.load(build_dir=tmp_path)
+
+    assert build.settings["framework_path"] == fw_path
+
+
+def test_invent_does_not_load_from_cache(tmp_path):
+    """invent() should NOT load settings from the cache."""
+    fw_path = _setup_fprime_project(tmp_path)
+
+    # Create a build dir with a cache file that would override settings if loaded
+    build_dir = tmp_path / "build-fprime-automatic-native"
+    build_dir.mkdir()
+    (build_dir / "CMakeCache.txt").write_text(
+        "FPRIME_FRAMEWORK_PATH:PATH=/should/not/appear\n"
+    )
+
+    build = fprime.fbuild.builder.Build(
+        fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    )
+    # invent with force since the dir already exists
+    build.invent(build_dir=build_dir, force=True)
+
+    # The framework_path should be from settings.ini, not from the cache
+    assert build.settings["framework_path"] == fw_path
+    assert build.settings["framework_path"] != pathlib.Path("/should/not/appear")

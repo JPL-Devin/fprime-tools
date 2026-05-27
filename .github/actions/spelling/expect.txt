@@ -58,6 +58,7 @@ mallocator
 MEMB
 mosa
 mstarch
+nframework
 nitpicky
 optarg
 oran
