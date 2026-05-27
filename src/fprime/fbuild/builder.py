@@ -139,7 +139,7 @@ class Build:
             ):
                 try:
                     self._load_settings_from_cache()
-                except InvalidBuildCacheException:
+                except (InvalidBuildCacheException, CMakeException):
                     pass
             return
         # Validate this is a build cache by finding either of two known files
