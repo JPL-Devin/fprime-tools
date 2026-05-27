@@ -145,7 +145,8 @@ class Build:
             (self.build_dir / ".fprime-build-dir").exists()
             or (self.build_dir / "CMakeCache.txt").exists()
         ):
-            self._load_settings_from_cache()
+            if (self.build_dir / "CMakeCache.txt").exists():
+                self._load_settings_from_cache()
             return
 
         # Message for hard-supplied --build-cache message
