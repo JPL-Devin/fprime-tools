@@ -322,52 +322,51 @@ def _make_build_with_cache(tmp_path, cache_content, settings_ini_content=None):
 def test_load_settings_from_cache_basic(tmp_path):
     """Settings are loaded from the CMake cache during load()."""
     fw_path = tmp_path / "fprime"
+    # project_root default = framework_path, install_destination default = cmake_root/build-artifacts
     cache = (
         f"FPRIME_FRAMEWORK_PATH:PATH={fw_path}\n"
-        "FPRIME_PROJECT_ROOT:PATH=/home/user/project\n"
-        "FPRIME_INSTALL_DEST:PATH=/home/user/project/install\n"
+        f"FPRIME_PROJECT_ROOT:PATH={fw_path}\n"
+        f"FPRIME_INSTALL_DEST:PATH={tmp_path / 'build-artifacts'}\n"
     )
     build = _make_build_with_cache(tmp_path, cache)
 
     assert build.settings["framework_path"] == fw_path
-    assert build.settings["project_root"] == pathlib.Path("/home/user/project")
-    assert build.settings["install_destination"] == pathlib.Path(
-        "/home/user/project/install"
-    )
+    assert build.settings["project_root"] == fw_path
+    assert build.settings["install_destination"] == tmp_path / "build-artifacts"
 
 
 def test_load_settings_from_cache_library_locations(tmp_path):
     """Library locations (semicolon-separated) are parsed correctly from cache."""
     fw_path = tmp_path / "fprime"
+    # Create library dirs so settings.ini path validation passes
+    for name in ["lib_a", "lib_b", "lib_c"]:
+        (tmp_path / name).mkdir()
+    lib_paths = [tmp_path / "lib_a", tmp_path / "lib_b", tmp_path / "lib_c"]
+    lib_str = ":".join(str(p) for p in lib_paths)
+    cache_lib_str = ";".join(str(p) for p in lib_paths)
+    ini_content = (
+        f"[fprime]\nframework_path = {fw_path}\n" f"library_locations = {lib_str}\n"
+    )
     cache = (
         f"FPRIME_FRAMEWORK_PATH:PATH={fw_path}\n"
-        "FPRIME_PROJECT_ROOT:PATH=/home/user/project\n"
-        "FPRIME_LIBRARY_LOCATIONS:PATH=/lib/a;/lib/b;/lib/c\n"
+        f"FPRIME_LIBRARY_LOCATIONS:PATH={cache_lib_str}\n"
     )
-    build = _make_build_with_cache(tmp_path, cache)
+    build = _make_build_with_cache(tmp_path, cache, settings_ini_content=ini_content)
 
-    assert build.settings["library_locations"] == [
-        pathlib.Path("/lib/a"),
-        pathlib.Path("/lib/b"),
-        pathlib.Path("/lib/c"),
-    ]
+    assert build.settings["library_locations"] == lib_paths
 
 
 def test_load_settings_from_cache_empty_library_locations(tmp_path):
     """Empty library locations in cache results in empty list."""
     fw_path = tmp_path / "fprime"
-    cache = (
-        f"FPRIME_FRAMEWORK_PATH:PATH={fw_path}\n"
-        "FPRIME_PROJECT_ROOT:PATH=/home/user/project\n"
-        "FPRIME_LIBRARY_LOCATIONS:PATH=\n"
-    )
+    cache = f"FPRIME_FRAMEWORK_PATH:PATH={fw_path}\n" "FPRIME_LIBRARY_LOCATIONS:PATH=\n"
     build = _make_build_with_cache(tmp_path, cache)
 
     assert build.settings["library_locations"] == []
 
 
 def test_load_settings_from_cache_inconsistency_raises(tmp_path):
-    """A hard error is raised when settings.ini and cache values differ."""
+    """A hard error is raised when settings and cache values differ."""
     fw_path = _setup_fprime_project(tmp_path)
 
     cache = "FPRIME_FRAMEWORK_PATH:PATH=/different/fprime\n"
@@ -384,7 +383,7 @@ def test_load_settings_from_cache_inconsistency_raises(tmp_path):
 
 
 def test_load_settings_from_cache_no_error_when_consistent(tmp_path):
-    """No error when settings.ini and cache values match."""
+    """No error when settings and cache values match."""
     fw_path = _setup_fprime_project(tmp_path)
 
     cache = f"FPRIME_FRAMEWORK_PATH:PATH={fw_path}\n"
@@ -396,24 +395,7 @@ def test_load_settings_from_cache_no_error_when_consistent(tmp_path):
     )
     build.load(build_dir=tmp_path)
 
-    # Value should still be the framework path
     assert build.settings["framework_path"] == fw_path
-
-
-def test_load_settings_from_cache_no_ini_value(tmp_path):
-    """When settings.ini does not set a value, cache value is used without error."""
-    fw_path = tmp_path / "fprime"
-    # settings.ini only sets framework_path, not project_root or install_destination
-    cache = (
-        f"FPRIME_FRAMEWORK_PATH:PATH={fw_path}\n"
-        "FPRIME_PROJECT_ROOT:PATH=/from/cache/project\n"
-        "FPRIME_INSTALL_DEST:PATH=/from/cache/install\n"
-    )
-    build = _make_build_with_cache(tmp_path, cache)
-
-    # Cache values used since settings.ini didn't set these explicitly
-    assert build.settings["project_root"] == pathlib.Path("/from/cache/project")
-    assert build.settings["install_destination"] == pathlib.Path("/from/cache/install")
 
 
 def test_invent_does_not_load_from_cache(tmp_path):
