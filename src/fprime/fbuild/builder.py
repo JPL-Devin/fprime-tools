@@ -6,6 +6,7 @@ build system handler underneath.
 import copy
 import os
 import re
+import warnings
 from pathlib import Path
 from typing import Iterable, List, Union
 
@@ -16,7 +17,6 @@ from fprime.fbuild.cmake import CMakeException, CMakeHandler
 from fprime.fbuild.settings import IniSettings
 from fprime.fbuild.target import Target, TargetScope
 from fprime.fbuild.types import (
-    AmbiguousToolchainException,
     BuildType,
     InvalidBuildCacheException,
     MissingBuildCachePath,
@@ -110,6 +110,7 @@ class Build:
         ("FPRIME_ENVIRONMENT_FILE", "environment_file"),
         ("FPRIME_CONFIG_DIR", "config_directory"),
         ("FPRIME_INSTALL_DEST", "install_destination"),
+        ("PROJECT_SOURCE_DIR", "project_source_dir"),
     ]
 
     def load(self, platform: str = None, build_dir: Path = None, skip_validation=False):
@@ -340,11 +341,119 @@ class Build:
         except CMakeException:
             return False
 
-    def find_toolchain(self):
-        """Locates a toolchain file in know locations
+    def _find_cmake_file(self, cmake_type: str, name: str) -> List[str]:
+        """Locate cmake files using priority-ordered glob search.
 
-        Finds a toolchain for the given platform.  Searches in known locations for the toolchain, and compares against F
-        prime provided toolchains, toolchains in libraries, and toolchains provided by project.
+        Search priority (highest to lowest):
+            1. Project direct — PROJECT_SOURCE_DIR/cmake/<type>/<name>.cmake
+            2. Backwards compat: legacy project root — FPRIME_PROJECT_ROOT/cmake/<type>/<name>.cmake
+               (only when FPRIME_PROJECT_ROOT differs from PROJECT_SOURCE_DIR)
+            3. Project libraries (lib/) — PROJECT_SOURCE_DIR/lib/*/cmake/<type>/<name>.cmake
+            4. Project subdirectories — PROJECT_SOURCE_DIR/*/cmake/<type>/<name>.cmake
+            5. Backwards compat: explicit library locations — each FPRIME_LIBRARY_LOCATIONS entry
+               (only when defined and non-empty)
+            6. Framework fallback — FPRIME_FRAMEWORK_PATH/cmake/<type>/<name>.cmake
+
+        Each pattern is globbed individually and results appended in order to
+        preserve priority.  Duplicates are removed preserving first-occurrence
+        order.
+
+        Args:
+            cmake_type: subdirectory under cmake/ (e.g. "toolchain", "platform")
+            name: file stem without .cmake extension
+
+        Returns:
+            List of absolute path strings to matching cmake files, ordered by priority.
+        """
+        project_source_dir = Path(
+            self.settings.get("project_source_dir") or self.cmake_root
+        )
+        project_root = self.get_settings("project_root", None)
+        framework_path = self.get_settings("framework_path", None)
+        library_locations = self.get_settings("library_locations", [])
+
+        filename = f"{name}.cmake"
+        glob_patterns: List[str] = []
+
+        # 1. Project direct
+        glob_patterns.append(str(project_source_dir / "cmake" / cmake_type / filename))
+
+        # 2. Backwards compat: legacy project root (only when defined, non-empty,
+        #    and differs from PROJECT_SOURCE_DIR). Slated for removal.
+        if (
+            project_root is not None
+            and str(project_root) != ""
+            and Path(project_root).resolve() != project_source_dir.resolve()
+        ):
+            glob_patterns.append(
+                str(Path(project_root) / "cmake" / cmake_type / filename)
+            )
+
+        # 3. Project libraries (lib/) — single level wildcard
+        glob_patterns.append(
+            str(project_source_dir / "lib" / "*" / "cmake" / cmake_type / filename)
+        )
+
+        # 4. Project subdirectories — single level wildcard
+        glob_patterns.append(
+            str(project_source_dir / "*" / "cmake" / cmake_type / filename)
+        )
+
+        # 5. Backwards compat: explicit library locations (only when defined and
+        #    non-empty). Slated for removal.
+        if library_locations:
+            for lib_loc in library_locations:
+                if lib_loc is not None and str(lib_loc) != "":
+                    glob_patterns.append(
+                        str(Path(lib_loc) / "cmake" / cmake_type / filename)
+                    )
+
+        # 6. Framework fallback
+        if framework_path is not None:
+            glob_patterns.append(
+                str(Path(framework_path) / "cmake" / cmake_type / filename)
+            )
+
+        # Glob each pattern individually, preserving priority order
+        seen = set()
+        results: List[str] = []
+        for pattern in glob_patterns:
+            if "*" in pattern:
+                # Find the topmost directory without a wildcard
+                parts = Path(pattern).parts
+                base_parts = []
+                glob_suffix_parts = []
+                found_wildcard = False
+                for part in parts:
+                    if not found_wildcard and "*" not in part:
+                        base_parts.append(part)
+                    else:
+                        found_wildcard = True
+                        glob_suffix_parts.append(part)
+                base = Path(*base_parts) if base_parts else Path(".")
+                glob_suffix = str(Path(*glob_suffix_parts))
+                if base.is_dir():
+                    for match in base.glob(glob_suffix):
+                        resolved = str(match.resolve())
+                        if resolved not in seen:
+                            seen.add(resolved)
+                            results.append(resolved)
+            else:
+                # Direct path check (no wildcard)
+                p = Path(pattern)
+                if p.is_file():
+                    resolved = str(p.resolve())
+                    if resolved not in seen:
+                        seen.add(resolved)
+                        results.append(resolved)
+
+        return results
+
+    def find_toolchain(self):
+        """Locates a toolchain file in known locations.
+
+        Finds a toolchain for the given platform using the priority-ordered glob
+        search defined by _find_cmake_file.
 
         Returns:
             path to CMake toolchain file or None to use builtin
@@ -352,40 +461,29 @@ class Build:
         assert (
             self.platform != "default"
         ), "Default toolchain should have been decided already"
-        toolchain_locations = self.get_settings(
-            ["framework_path", "project_root"], [None, self.cmake_root]
-        )
-        toolchain_locations += self.get_settings("library_locations", [])
 
-        # If toolchain is the native target, this is supplied by CMake and we exit here.
+        # Native toolchain is supplied by CMake directly
         if self.platform == "native":
             return None
-        # Otherwise, find locations of toolchain files using the specified locations from settings.
-        toolchains_paths = [
-            os.path.join(loc, "cmake", "toolchain", f"{self.platform}.cmake")
-            for loc in toolchain_locations
-            if loc is not None
-        ]
-        # Create a deduplicated set of toolchains
-        toolchains = list(
-            {
-                toolchain_path
-                for toolchain_path in toolchains_paths
-                if os.path.exists(toolchain_path)
-            }
-        )
 
-        if not toolchains:
-            searched_toolchain_paths = "\n" + "\n".join(
-                path.removesuffix(f"{self.platform}.cmake") for path in toolchains_paths
+        results = self._find_cmake_file("toolchain", self.platform)
+
+        if not results:
+            project_source_dir = Path(
+                self.settings.get("project_source_dir") or self.cmake_root
             )
-            msg = f"Could not find any toolchain file called {self.platform}.cmake after attempting to search for the file at the following locations: {searched_toolchain_paths}"
+            msg = (
+                f"Could not find toolchain file '{self.platform}.cmake'. "
+                f"Searched project ({project_source_dir}), libraries, and framework paths."
+            )
             raise NoSuchToolchainException(msg)
-        if len(toolchains) > 1:
-            conflicting_toolchain_paths = "\n\n" + "\n".join(toolchains)
-            msg = f"Found conflicting toolchain files for the toolchain file called {self.platform} in the following locations: {conflicting_toolchain_paths}"
-            raise AmbiguousToolchainException(msg)
-        return toolchains[0]
+        if len(results) > 1:
+            warnings.warn(
+                f"Multiple toolchain files found for '{self.platform}'; using first match:\n"
+                + "\n".join(f"  {r}" for r in results),
+                stacklevel=2,
+            )
+        return results[0]
 
     def get_cmake_args(self) -> dict:
         """Generates CMake arguments from project settings (settings.ini file)
