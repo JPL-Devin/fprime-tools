@@ -276,7 +276,8 @@ class Build:
                     f"'{Build._setting_to_str(ini_value)}' "
                     f"differs from CMake cache '{cache_var}' value "
                     f"'{Build._setting_to_str(converted)}'. Please regenerate "
-                    f"using 'fprime-util generate -f'."
+                    f"using 'fprime-util generate -f'.",
+                    self.build_dir,
                 )
 
             self.settings[setting_key] = converted
