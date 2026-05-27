@@ -3,6 +3,7 @@ Supplies high-level build functions to the greater fprime helper CLI. This maps 
 build system handler underneath.
 """
 
+import configparser
 import copy
 import os
 import re
@@ -132,13 +133,11 @@ class Build:
         self.__setup_default(platform, build_dir)
         self._build_cache_locations = self._load_build_cache_locations()
 
-        # Load settings from cache if the cache exists (even when skipping validation)
-        if self.build_dir is not None and (
-            (self.build_dir / "CMakeCache.txt").exists()
-        ):
-            self._load_settings_from_cache()
-
         if skip_validation:
+            if self.build_dir is not None and (
+                (self.build_dir / "CMakeCache.txt").exists()
+            ):
+                self._load_settings_from_cache()
             return
         # Validate this is a build cache by finding either of two known files
         # One is from F´, other from CMake, for redundancy
@@ -146,6 +145,7 @@ class Build:
             (self.build_dir / ".fprime-build-dir").exists()
             or (self.build_dir / "CMakeCache.txt").exists()
         ):
+            self._load_settings_from_cache()
             return
 
         # Message for hard-supplied --build-cache message
@@ -229,18 +229,32 @@ class Build:
             platform=self.platform, suffix=self.build_type.get_suffix()
         )
 
+    @staticmethod
+    def _setting_to_str(value) -> str:
+        """Format a setting value as a human-readable string."""
+        if isinstance(value, list):
+            return ", ".join(str(p) for p in value)
+        return str(value)
+
     def _load_settings_from_cache(self):
         """Load settings from the CMake cache, using it as the authoritative source.
 
         Reads FPRIME_* variables from the CMake cache and overrides the corresponding
-        settings.ini values. If a setting exists in both sources and they differ, a
-        warning is printed. This ensures that post-generation commands use the same
-        configuration that was baked into the build cache at generation time.
+        settings.ini values. If a setting was explicitly set in settings.ini and differs
+        from the cache, a hard error is raised instructing the user to regenerate. If
+        settings.ini does not explicitly set a value, the cache value is used
+        unconditionally.
         """
         cache = self.cmake.get_fprime_configuration(
             [cache_var for cache_var, _ in Build.CACHE_SETTING_MAP],
             str(self.build_dir),
         )
+
+        # Read settings.ini to determine which keys were explicitly set by the user
+        parser = configparser.ConfigParser()
+        settings_file = self.cmake_root / "settings.ini"
+        if settings_file.exists():
+            parser.read(settings_file)
 
         for (cache_var, setting_key), cache_value in zip(
             Build.CACHE_SETTING_MAP, cache
@@ -258,24 +272,17 @@ class Build:
             else:
                 converted = Path(cache_value)
 
-            # Check consistency with settings.ini value
-            ini_value = self.settings.get(setting_key)
-            if ini_value is not None and ini_value != converted:
-                ini_str = (
-                    ";".join(str(p) for p in ini_value)
-                    if isinstance(ini_value, list)
-                    else str(ini_value)
-                )
-                cache_str = (
-                    ";".join(str(p) for p in converted)
-                    if isinstance(converted, list)
-                    else str(converted)
-                )
-                print(
-                    f"[WARNING] settings.ini '{setting_key}' value '{ini_str}' "
-                    f"differs from CMake cache '{cache_var}' value '{cache_str}'. "
-                    f"Using cache value.",
-                    file=sys.stderr,
+            # Only raise on mismatch if the user explicitly set the value in settings.ini
+            explicitly_set = parser.has_option(
+                "fprime", setting_key
+            ) or parser.has_option(self.platform, setting_key)
+            if explicitly_set and self.settings.get(setting_key) != converted:
+                raise InvalidBuildCacheException(
+                    f"settings.ini '{setting_key}' value "
+                    f"'{Build._setting_to_str(self.settings.get(setting_key))}' "
+                    f"differs from CMake cache '{cache_var}' value "
+                    f"'{Build._setting_to_str(converted)}'. Please regenerate "
+                    f"using 'fprime-util generate -f'."
                 )
 
             self.settings[setting_key] = converted
