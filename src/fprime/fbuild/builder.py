@@ -6,6 +6,7 @@ build system handler underneath.
 import copy
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Iterable, List, Union
 
@@ -100,11 +101,24 @@ class Build:
             if not force:
                 raise InvalidBuildCacheException(msg)
 
+    # Mapping from CMake cache variable names to settings.ini keys for settings that
+    # should be loaded back from the CMake cache after generation.
+    CACHE_SETTING_MAP = [
+        ("FPRIME_FRAMEWORK_PATH", "framework_path"),
+        ("FPRIME_LIBRARY_LOCATIONS", "library_locations"),
+        ("FPRIME_PROJECT_ROOT", "project_root"),
+        ("FPRIME_SETTINGS_FILE", "settings_file"),
+        ("FPRIME_ENVIRONMENT_FILE", "environment_file"),
+        ("FPRIME_CONFIG_DIR", "config_directory"),
+        ("FPRIME_INSTALL_DEST", "install_destination"),
+    ]
+
     def load(self, platform: str = None, build_dir: Path = None, skip_validation=False):
         """Load an existing build cache
 
         Sets this build up from an existing build cache. This can be used after a previous run that has generated a
-        build cache in order to prepare for other build steps.
+        build cache in order to prepare for other build steps. Settings are loaded from the CMake cache as the
+        authoritative source, with consistency checks against settings.ini values.
 
         Args:
             platform:   name of platform to build against. None will use default from settings.ini or without this
@@ -117,6 +131,12 @@ class Build:
         """
         self.__setup_default(platform, build_dir)
         self._build_cache_locations = self._load_build_cache_locations()
+
+        # Load settings from cache if the cache exists (even when skipping validation)
+        if self.build_dir is not None and (
+            (self.build_dir / "CMakeCache.txt").exists()
+        ):
+            self._load_settings_from_cache()
 
         if skip_validation:
             return
@@ -208,6 +228,62 @@ class Build:
         return self.cmake_root / Build.CMAKE_DEFAULT_BUILD_NAME.format(
             platform=self.platform, suffix=self.build_type.get_suffix()
         )
+
+    def _load_settings_from_cache(self):
+        """Load settings from the CMake cache, using it as the authoritative source.
+
+        Reads FPRIME_* variables from the CMake cache and overrides the corresponding
+        settings.ini values. If a setting exists in both sources and they differ, a
+        warning is printed. This ensures that post-generation commands use the same
+        configuration that was baked into the build cache at generation time.
+        """
+        cache = self.cmake.get_fprime_configuration(
+            [cache_var for cache_var, _ in Build.CACHE_SETTING_MAP],
+            str(self.build_dir),
+        )
+
+        for (cache_var, setting_key), cache_value in zip(
+            Build.CACHE_SETTING_MAP, cache
+        ):
+            if cache_value is None:
+                continue
+
+            # Convert cache string to appropriate type matching settings.ini types
+            if setting_key == "library_locations":
+                converted = (
+                    [Path(p) for p in cache_value.split(";") if p]
+                    if cache_value
+                    else []
+                )
+            else:
+                converted = Path(cache_value)
+
+            # Check consistency with settings.ini value
+            ini_value = self.settings.get(setting_key)
+            if ini_value is not None and ini_value != converted:
+                ini_str = (
+                    ";".join(str(p) for p in ini_value)
+                    if isinstance(ini_value, list)
+                    else str(ini_value)
+                )
+                cache_str = (
+                    ";".join(str(p) for p in converted)
+                    if isinstance(converted, list)
+                    else str(converted)
+                )
+                print(
+                    f"[WARNING] settings.ini '{setting_key}' value '{ini_str}' "
+                    f"differs from CMake cache '{cache_var}' value '{cache_str}'. "
+                    f"Using cache value.",
+                    file=sys.stderr,
+                )
+
+            self.settings[setting_key] = converted
+
+        # Reload environment from the (potentially updated) environment file
+        env_file = self.settings.get("environment_file")
+        if env_file is not None:
+            self.settings["environment"] = IniSettings.load_environment(env_file)
 
     def get_build_info(self, context: Path) -> dict:
         """Constructs an informational packet about this build
