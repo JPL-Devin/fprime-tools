@@ -100,7 +100,7 @@ def new_component(build: Build, parsed_args: "argparse.Namespace"):
         return 1
 
     try:
-        proj_root = build.get_settings("project_root", None)
+        proj_root = build.get_settings("project_root", None) or build.cmake_root
 
         # Checks if component_cookiecutter is set in settings.ini file, else uses local component_cookiecutter template as default
         if (
@@ -197,7 +197,7 @@ def new_deployment(build: Build, parsed_args: "argparse.Namespace"):
     if rel_path:
         extra_context["__include_path_prefix"] = f"{rel_path}/"
     # Use current working directory name as default namespace, unless at project root
-    project_root: Path = build.get_settings("project_root", None)
+    project_root: Path = build.get_settings("project_root", None) or build.cmake_root
     if not project_root.samefile(Path.cwd()):
         extra_context["deployment_namespace"] = Path.cwd().name
 
@@ -212,7 +212,7 @@ def new_deployment(build: Build, parsed_args: "argparse.Namespace"):
         # Attempt to register to CMakeLists.txt or project.cmake
         register_with_cmake(
             gen_path,
-            Path(build.get_settings("project_root", None)).resolve(),
+            (build.get_settings("project_root", None) or build.cmake_root).resolve(),
             build.cmake_root,
         )
 
@@ -254,7 +254,7 @@ def new_subtopology(build: Build, parsed_args: "argparse.Namespace"):
         # Attempt to register to CMakeLists.txt or project.cmake
         register_with_cmake(
             gen_path,
-            Path(build.get_settings("project_root", None)).resolve(),
+            (build.get_settings("project_root", None) or build.cmake_root).resolve(),
             build.cmake_root,
         )
 
@@ -293,7 +293,7 @@ def new_module(build: Build, parsed_args: "argparse.Namespace", source=None):
         # Attempt to register to CMakeLists.txt or project.cmake
         register_with_cmake(
             gen_path,
-            Path(build.get_settings("project_root", None)).resolve(),
+            (build.get_settings("project_root", None) or build.cmake_root).resolve(),
             build.cmake_root,
         )
     except OutputDirExistsException as out_directory_error:
