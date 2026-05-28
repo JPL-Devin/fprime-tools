@@ -175,7 +175,7 @@ class SpecificBuildTargetEnumerator(BuildTargetEnumerator):
 
     def enumerate(self, builder: "Build", context_path: Path) -> EnumeratedContext:
         """Enumerates exactly a build target"""
-        return self.build_targets, context_path
+        return self.build_targets, builder.cmake_root
 
 
 class CliBuildTargetEnumerator(SpecificBuildTargetEnumerator):
