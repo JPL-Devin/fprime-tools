@@ -127,11 +127,6 @@ def new_component(build: Build, parsed_args: "argparse.Namespace"):
 
         gen_path = Path(cookiecutter(source, extra_context=extra_context)).resolve()
 
-        if proj_root is None:
-            print(
-                f"[INFO] Created component directory without adding to build system nor generating implementation {gen_path}"
-            )
-            return 0
         # Attempt to register to CMakeLists.txt or project.cmake
         register_with_cmake(
             gen_path,
