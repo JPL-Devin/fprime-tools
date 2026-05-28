@@ -424,7 +424,7 @@ def test_cli_preset_overrides_settings_ini(tmp_path):
     fw_path = _setup_fprime_project(tmp_path)
     # Overwrite settings.ini with a preset value
     (tmp_path / "settings.ini").write_text(
-        f"[fprime]\nframework_path = {fw_path}\npreset: ini-preset\n"
+        f"[fprime]\nframework_path = {fw_path}\n" f"preset: ini-preset\n"
     )
 
     with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
@@ -443,7 +443,7 @@ def test_settings_ini_preset_used_when_no_cli_preset(tmp_path):
     """When no CLI --preset is given, settings.ini preset should be used."""
     fw_path = _setup_fprime_project(tmp_path)
     (tmp_path / "settings.ini").write_text(
-        f"[fprime]\nframework_path = {fw_path}\npreset: ini-preset\n"
+        f"[fprime]\nframework_path = {fw_path}\n" f"preset: ini-preset\n"
     )
 
     with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
