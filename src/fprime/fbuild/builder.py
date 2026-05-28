@@ -342,7 +342,9 @@ class Build:
         except CMakeException:
             return False
 
-    def _find_cmake_file(self, cmake_type: str, name: str) -> List[str]:
+    def _find_cmake_file(
+        self, cmake_type: str, name: str
+    ) -> "tuple[List[str], List[str]]":
         """Locate cmake files using priority-ordered glob search.
 
         Search priority (highest to lowest):
@@ -364,7 +366,9 @@ class Build:
             name: file stem without .cmake extension
 
         Returns:
-            List of absolute path strings to matching cmake files, ordered by priority.
+            Tuple of (matched files, searched patterns). Matched files are absolute
+            path strings ordered by priority. Searched patterns are the raw glob
+            patterns that were attempted.
         """
         project_source_dir = Path(
             self.settings.get("project_source_dir") or self.cmake_root
@@ -378,19 +382,20 @@ class Build:
         def _cmake_path(*parts):
             return str(Path(*parts) / "cmake" / cmake_type / filename)
 
+        # Pre-compute conditions for backwards-compat patterns
+        _project_root_differs = (
+            project_root is not None
+            and str(project_root) != ""
+            and Path(project_root).resolve() != project_source_dir.resolve()
+        )
+
         # Build ordered search patterns — highest priority first
         glob_patterns: List[str] = []
 
         # 1. Project direct
         glob_patterns += [_cmake_path(project_source_dir)]
 
-        # 2. Backwards compat: legacy project root (only when defined, non-empty,
-        #    and differs from PROJECT_SOURCE_DIR). Slated for removal.
-        _project_root_differs = (
-            project_root is not None
-            and str(project_root) != ""
-            and Path(project_root).resolve() != project_source_dir.resolve()
-        )
+        # 2. Backwards compat: legacy project root. Slated for removal.
         glob_patterns += [_cmake_path(project_root)] if _project_root_differs else []
 
         # 3. Project libraries (lib/) — single level wildcard
@@ -399,8 +404,7 @@ class Build:
         # 4. Project subdirectories — single level wildcard
         glob_patterns += [_cmake_path(project_source_dir / "*")]
 
-        # 5. Backwards compat: explicit library locations (only when defined and
-        #    non-empty). Slated for removal.
+        # 5. Backwards compat: explicit library locations. Slated for removal.
         glob_patterns += [
             _cmake_path(loc)
             for loc in library_locations
@@ -410,13 +414,14 @@ class Build:
         # 6. Framework fallback
         glob_patterns += [_cmake_path(framework_path)] if framework_path else []
 
-        # Glob each pattern individually, then deduplicate preserving priority order
+        # Glob each pattern individually and collect matches
         matches = [
             str(Path(m).resolve())
             for pattern in glob_patterns
             for m in glob.glob(pattern)
         ]
-        return list(dict.fromkeys(matches))
+        # De-duplicating by making an ordered dictionary and converting back to a list
+        return list(dict.fromkeys(matches)), glob_patterns
 
     def find_toolchain(self):
         """Locates a toolchain file in known locations.
@@ -435,21 +440,19 @@ class Build:
         if self.platform == "native":
             return None
 
-        results = self._find_cmake_file("toolchain", self.platform)
+        results, searched_patterns = self._find_cmake_file("toolchain", self.platform)
 
         if not results:
-            project_source_dir = Path(
-                self.settings.get("project_source_dir") or self.cmake_root
+            searched_toolchain_paths = "\n" + "\n".join(
+                path.removesuffix(f"{self.platform}.cmake")
+                for path in searched_patterns
             )
-            msg = (
-                f"Could not find toolchain file '{self.platform}.cmake'. "
-                f"Searched project ({project_source_dir}), libraries, and framework paths."
-            )
+            msg = f"Could not find any toolchain file called {self.platform}.cmake after attempting to search for the file at the following locations: {searched_toolchain_paths}"
             raise NoSuchToolchainException(msg)
         if len(results) > 1:
+            conflicting_toolchain_paths = "\n\n" + "\n".join(results)
             warnings.warn(
-                f"Multiple toolchain files found for '{self.platform}'; using first match:\n"
-                + "\n".join(f"  {r}" for r in results),
+                f"Found conflicting toolchain files for the toolchain file called {self.platform} in the following locations: {conflicting_toolchain_paths}",
                 stacklevel=2,
             )
         return results[0]
