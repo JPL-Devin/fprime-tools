@@ -123,13 +123,7 @@ class Build:
         ("PROJECT_SOURCE_DIR", "project_source_dir"),
     ]
 
-    def load(
-        self,
-        platform: str = None,
-        build_dir: Path = None,
-        skip_validation=False,
-        preset: str = None,
-    ):
+    def load(self, platform: str = None, build_dir: Path = None, skip_validation=False):
         """Load an existing build cache
 
         Sets this build up from an existing build cache. This can be used after a previous run that has generated a
@@ -145,7 +139,7 @@ class Build:
         Raises:
             InvalidBuildCacheException: the build cache does not exist as it must
         """
-        self.__setup_default(platform, build_dir, preset=preset)
+        self.__setup_default(platform, build_dir)
         self._build_cache_locations = self._load_build_cache_locations()
 
         if skip_validation:
@@ -744,17 +738,12 @@ class Build:
             if build_cache is not None
             else BuildType.get_public_types()
         )
-        preset = base.settings.get("preset") if base.settings else None
-        preset = preset if preset else None
         builds = []
         for build_type in build_types:
             build = Build(build_type, base.cmake_root, verbose=base.cmake.verbose)
             try:
                 build.load(
-                    base.platform,
-                    build_dir=build_cache,
-                    skip_validation=ignore_invalid,
-                    preset=preset,
+                    base.platform, build_dir=build_cache, skip_validation=ignore_invalid
                 )
                 builds.append(build)
             except InvalidBuildCacheException as error:
