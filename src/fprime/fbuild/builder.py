@@ -7,7 +7,6 @@ import copy
 import glob
 import os
 import re
-import warnings
 from pathlib import Path
 from typing import Iterable, List, Union
 
@@ -18,6 +17,7 @@ from fprime.fbuild.cmake import CMakeException, CMakeHandler
 from fprime.fbuild.settings import IniSettings
 from fprime.fbuild.target import Target, TargetScope
 from fprime.fbuild.types import (
+    AmbiguousToolchainException,
     BuildType,
     InvalidBuildCacheException,
     MissingBuildCachePath,
@@ -451,10 +451,8 @@ class Build:
             raise NoSuchToolchainException(msg)
         if len(results) > 1:
             conflicting_toolchain_paths = "\n\n" + "\n".join(results)
-            warnings.warn(
-                f"Found conflicting toolchain files for the toolchain file called {self.platform} in the following locations: {conflicting_toolchain_paths}",
-                stacklevel=2,
-            )
+            msg = f"Found conflicting toolchain files for the toolchain file called {self.platform} in the following locations: {conflicting_toolchain_paths}"
+            raise AmbiguousToolchainException(msg)
         return results[0]
 
     def get_cmake_args(self) -> dict:
