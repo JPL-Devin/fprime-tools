@@ -73,7 +73,35 @@ def run_fbuild_cli(
             # Sets Ninja as the default build system
             cmake_args["CMAKE_GENERATOR"] = "Ninja"
 
-        build.generate(cmake_args)
+        # Resolve preset: CLI --preset > settings.ini > none
+        preset = parsed.preset or build.get_settings("preset", "") or None
+
+        if preset:
+            print(f"[INFO] Using CMake preset '{preset}'")
+            conflicting = []
+            if parsed.disable_sanitizers:
+                conflicting.append("--disable-sanitizers")
+            if parsed.make:
+                conflicting.append("--make")
+            if toolchain is not None:
+                conflicting.append(f"toolchain '{toolchain}'")
+            if cmake_args.get("CMAKE_TOOLCHAIN_FILE"):
+                pass  # Already covered by toolchain check above
+            # Check for user-supplied -D flags that may conflict with preset
+            user_d_flags = [
+                k
+                for k in cmake_args
+                if not k.startswith("--") and k != "CMAKE_GENERATOR"
+            ]
+            if user_d_flags:
+                conflicting.append(f"-D flags ({', '.join(user_d_flags)})")
+            if conflicting:
+                print(
+                    f"[WARNING] --preset '{preset}' specified alongside {', '.join(conflicting)}. "
+                    f"The preset may override these settings."
+                )
+
+        build.generate(cmake_args, preset=preset)
     elif parsed.command == "purge":
         # Since purge does not load its "base", we need to overload the platform
         purge(build, parsed)

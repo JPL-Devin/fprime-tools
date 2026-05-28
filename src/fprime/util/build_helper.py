@@ -98,13 +98,20 @@ def load_build(parsed, skip_validation=False):
     # Some commands, like purge and info, run on sets of directories and will attempt to load those sets later.
     # However, the base directory must be setup here. Errors in this load are ignored to allow the command to find
     # build caches related to that set.
+    preset = getattr(parsed, "preset", None)
     if parsed.command == "generate":
-        build.invent(parsed.platform, build_dir=parsed.build_cache, force=parsed.force)
+        build.invent(
+            parsed.platform,
+            build_dir=parsed.build_cache,
+            force=parsed.force,
+            preset=preset,
+        )
     else:
         build.load(
             parsed.platform,
             parsed.build_cache,
             skip_validation=skip_validation,
+            preset=preset,
         )
     validate_tools_from_requirements(build)
     return build
