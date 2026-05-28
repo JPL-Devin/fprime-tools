@@ -88,10 +88,17 @@ def run_fbuild_cli(
             if cmake_args.get("CMAKE_TOOLCHAIN_FILE"):
                 pass  # Already covered by toolchain check above
             # Check for user-supplied -D flags that may conflict with preset
+            internal_keys = {
+                "CMAKE_GENERATOR",
+                "CMAKE_TOOLCHAIN_FILE",
+                "ENABLE_SANITIZER_LEAK",
+                "ENABLE_SANITIZER_ADDRESS",
+                "ENABLE_SANITIZER_UNDEFINED_BEHAVIOR",
+            }
             user_d_flags = [
                 k
                 for k in cmake_args
-                if not k.startswith("--") and k != "CMAKE_GENERATOR"
+                if not k.startswith("--") and k not in internal_keys
             ]
             if user_d_flags:
                 conflicting.append(f"-D flags ({', '.join(user_d_flags)})")

@@ -179,6 +179,9 @@ class Build:
                 and platform != "default"
                 else ""
             )
+            active_preset = self.settings.get("preset", "") if self.settings else ""
+            if active_preset:
+                gen_args += f" --preset {active_preset}"
         msg = f"'{self.build_dir}' is not a valid build cache. Generate this build cache with 'fprime-util generate{gen_args} ...'"
         raise InvalidBuildCacheException(
             msg,
