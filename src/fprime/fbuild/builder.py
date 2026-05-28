@@ -375,7 +375,7 @@ class Build:
         )
         project_root = self.get_settings("project_root", None)
         framework_path = self.get_settings("framework_path", None)
-        library_locations = self.get_settings("library_locations", None) or []
+        library_locations = self.get_settings("library_locations", [])
 
         filename = f"{name}.cmake"
 

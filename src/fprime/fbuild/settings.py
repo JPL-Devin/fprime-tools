@@ -187,21 +187,23 @@ class IniSettings:
         for key, settings_type, default in (
             IniSettings.FPRIME_FIELDS + IniSettings.PLATFORM_FIELDS
         ):
-            settings[key] = IniSettings.read_setting(
+            value = IniSettings.read_setting(
                 confparse, settings, "fprime", key, settings_type, default
             )
+            if value is not None:
+                settings[key] = value
 
         # Calculate the platform if not specified
         if not platform or platform == "default":
             platform = (
-                settings.get("default_ut_toolchain")
+                settings.get("default_ut_toolchain", "native")
                 if is_ut
-                else settings.get("default_toolchain")
+                else settings.get("default_toolchain", "native")
             )
 
         # Read platform settings overtop of fprime settings
         for key, settings_type, default in IniSettings.PLATFORM_FIELDS:
-            settings[key] = IniSettings.read_setting(
+            value = IniSettings.read_setting(
                 confparse,
                 settings,
                 platform,
@@ -209,6 +211,8 @@ class IniSettings:
                 settings_type,
                 settings.get(key, default),
             )
+            if value is not None:
+                settings[key] = value
 
         if settings.get("environment_file") is not None:
             settings["environment"] = IniSettings.load_environment(
