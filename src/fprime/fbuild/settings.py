@@ -11,6 +11,7 @@ import configparser
 import os
 import sys
 from enum import Enum
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Union
 
@@ -55,6 +56,26 @@ class SettingType(Enum):
 
 
 
+def find_fprime(settings: dict) -> Path:
+    """
+    Finds F prime by recursing parent to parent until a matching directory is found.
+    """
+    needle = Path("fprime/cmake/FPrime.cmake")
+    path = settings["_cmake_project_root"]
+    while path != path.parent:
+        if (path / needle).is_file():
+            return path / "fprime"
+        path = path.parent
+    raise FprimeLocationUnknownException(
+        "Please set 'framework_path' in [fprime] section in 'settings.ini"
+    )
+
+
+def join(key: Path, addition: str, settings: dict):
+    """Joins a settings key to the addition"""
+    return settings[key] / addition
+
+
 class IniSettings:
     """Class to load settings from INI files"""
 
@@ -62,20 +83,32 @@ class IniSettings:
     SET_ENV = "FPRIME_SETTINGS_FILE"
 
     FPRIME_FIELDS = [
-        ("framework_path", SettingType.PATH, None),
-        ("project_root", SettingType.PATH, None),
-        ("default_toolchain", SettingType.STRING, None),
-        ("default_ut_toolchain", SettingType.STRING, None),
-        ("library_locations", SettingType.PATH_LIST, None),
-        ("component_cookiecutter", SettingType.STRING, None),
-        ("deployment_cookiecutter", SettingType.STRING, None),
+        ("framework_path", SettingType.PATH, find_fprime),
+        ("project_root", SettingType.PATH, lambda settings: settings["framework_path"]),
+        ("default_toolchain", SettingType.STRING, "native"),
+        ("default_ut_toolchain", SettingType.STRING, "native"),
+        ("library_locations", SettingType.PATH_LIST, []),
+        ("component_cookiecutter", SettingType.STRING, "default"),
+        ("deployment_cookiecutter", SettingType.STRING, "default"),
     ]
 
     PLATFORM_FIELDS = [
-        ("config_directory", SettingType.PATH, None),
-        ("install_destination", SettingType.PATH, None),
-        ("environment_file", SettingType.PATH, None),
-        ("default_cmake_options", SettingType.STRING, None),
+        (
+            "config_directory",
+            SettingType.PATH,
+            partial(join, "framework_path", "config"),
+        ),
+        (
+            "install_destination",
+            SettingType.PATH,
+            partial(join, "_cmake_project_root", "build-artifacts"),
+        ),
+        (
+            "environment_file",
+            SettingType.PATH,
+            lambda settings: settings["settings_file"],
+        ),
+        ("default_cmake_options", SettingType.STRING, ""),
     ]
 
     @staticmethod
@@ -183,12 +216,17 @@ class IniSettings:
         if settings_file.exists():
             settings["settings_file"] = settings_file
 
+        # When no settings.ini exists, supply no defaults — let CMake infer.
+        # When settings.ini exists, use the declared field defaults.
+        has_ini = confparse is not None
+
         # Read fprime and platform settings from the "fprime" section
         for key, settings_type, default in (
             IniSettings.FPRIME_FIELDS + IniSettings.PLATFORM_FIELDS
         ):
+            effective_default = default if has_ini else None
             value = IniSettings.read_setting(
-                confparse, settings, "fprime", key, settings_type, default
+                confparse, settings, "fprime", key, settings_type, effective_default
             )
             if value is not None:
                 settings[key] = value
@@ -203,13 +241,14 @@ class IniSettings:
 
         # Read platform settings overtop of fprime settings
         for key, settings_type, default in IniSettings.PLATFORM_FIELDS:
+            effective_default = settings.get(key, default) if has_ini else None
             value = IniSettings.read_setting(
                 confparse,
                 settings,
                 platform,
                 key,
                 settings_type,
-                settings.get(key, default),
+                effective_default,
             )
             if value is not None:
                 settings[key] = value
