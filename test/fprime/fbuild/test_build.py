@@ -224,8 +224,8 @@ def test_get_build_cache_locations_no_file(tmp_path):
     build = _make_build(tmp_path)
     locations = build.get_build_cache_locations()
     assert locations == [
-        (tmp_path / "F-Prime").resolve(),
         tmp_path.resolve(),
+        (tmp_path / "F-Prime").resolve(),
     ]
 
 

@@ -525,7 +525,8 @@ class Build:
         """
         locations_file = self.build_dir / "fprime-locations.fprime-util"
         if not locations_file.exists():
-            return [(self.build_dir / "F-Prime").resolve(), self.build_dir.resolve()]
+            # build_dir must precede F-Prime: first match wins in get_build_cache_path
+            return [self.build_dir.resolve(), (self.build_dir / "F-Prime").resolve()]
 
         build_dir_resolved = self.build_dir.resolve()
         locations = []

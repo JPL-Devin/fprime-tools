@@ -182,20 +182,24 @@ def test_specific_build_target_enumerator_constructor():
     """Test SpecificBuildTargetEnumerator returns constructor-provided targets"""
     targets = ["specific_target1", "specific_target2"]
     enumerator = SpecificBuildTargetEnumerator(build_targets=targets)
-    # The builder and context path are not used by this enumerator
-    assert enumerator.enumerate(None, None)[0] == targets
+    builder_mock = MagicMock()
+    builder_mock.cmake_root = Path("/project/root")
+    assert enumerator.enumerate(builder_mock, None)[0] == targets
+    assert enumerator.enumerate(builder_mock, None)[1] == builder_mock.cmake_root
 
 
 def test_specific_build_target_enumerator_setter():
     """Test SpecificBuildTargetEnumerator's setter overrides constructor targets"""
     initial_targets = ["initial1"]
     override_targets = ["override1", "override2"]
+    builder_mock = MagicMock()
+    builder_mock.cmake_root = Path("/project/root")
 
     enumerator = SpecificBuildTargetEnumerator(build_targets=initial_targets)
-    assert enumerator.enumerate(None, None)[0] == initial_targets
+    assert enumerator.enumerate(builder_mock, None)[0] == initial_targets
 
     enumerator.set_build_targets(override_targets)
-    assert enumerator.enumerate(None, None)[0] == override_targets
+    assert enumerator.enumerate(builder_mock, None)[0] == override_targets
 
 
 def test_cli_build_target_enumerator():
@@ -219,4 +223,6 @@ def test_cli_build_target_enumerator():
     # Verify that the namespace is updated as expected
     assert namespace.target is True
     # Verify that a subsequent call to enumerate returns the values set by the action
-    assert cli_enumerator.enumerate(None, None)[0] == values
+    builder_mock = MagicMock()
+    builder_mock.cmake_root = Path("/project/root")
+    assert cli_enumerator.enumerate(builder_mock, None)[0] == values
