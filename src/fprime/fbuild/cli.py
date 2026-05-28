@@ -73,8 +73,7 @@ def run_fbuild_cli(
             # Sets Ninja as the default build system
             cmake_args["CMAKE_GENERATOR"] = "Ninja"
 
-        # Resolve preset: CLI --preset > settings.ini > none
-        preset = parsed.preset or build.get_settings("preset", "") or None
+        preset = build.get_settings("preset", "") or None
 
         if preset:
             print(f"[INFO] Using CMake preset '{preset}'")

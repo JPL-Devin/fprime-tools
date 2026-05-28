@@ -417,4 +417,54 @@ def test_invent_does_not_load_from_cache(tmp_path):
 
     # The framework_path should be from settings.ini, not from the cache
     assert build.settings["framework_path"] == fw_path
-    assert build.settings["framework_path"] != pathlib.Path("/should/not/appear")
+
+
+def test_cli_preset_overrides_settings_ini(tmp_path):
+    """CLI --preset should override the preset value from settings.ini."""
+    fw_path = _setup_fprime_project(tmp_path)
+    # Overwrite settings.ini with a preset value
+    (tmp_path / "settings.ini").write_text(
+        f"[fprime]\nframework_path = {fw_path}\npreset: ini-preset\n"
+    )
+
+    with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
+        build = fprime.fbuild.builder.Build(
+            fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+        )
+    build.invent(preset="cli-override")
+
+    # CLI preset should override settings.ini value
+    assert build.settings["preset"] == "cli-override"
+    assert "cli-override" in str(build.build_dir)
+    assert "ini-preset" not in str(build.build_dir)
+
+
+def test_settings_ini_preset_used_when_no_cli_preset(tmp_path):
+    """When no CLI --preset is given, settings.ini preset should be used."""
+    fw_path = _setup_fprime_project(tmp_path)
+    (tmp_path / "settings.ini").write_text(
+        f"[fprime]\nframework_path = {fw_path}\npreset: ini-preset\n"
+    )
+
+    with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
+        build = fprime.fbuild.builder.Build(
+            fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+        )
+    build.invent()
+
+    assert build.settings["preset"] == "ini-preset"
+    assert "ini-preset" in str(build.build_dir)
+
+
+def test_no_preset_omits_suffix(tmp_path):
+    """When no preset is set anywhere, build dir has no preset suffix."""
+    _setup_fprime_project(tmp_path)
+
+    with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
+        build = fprime.fbuild.builder.Build(
+            fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+        )
+    build.invent()
+
+    assert build.settings["preset"] == ""
+    assert str(build.build_dir).endswith("build-fprime-automatic-native")
