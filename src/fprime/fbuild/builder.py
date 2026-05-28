@@ -525,10 +525,7 @@ class Build:
         """
         locations_file = self.build_dir / "fprime-locations.fprime-util"
         if not locations_file.exists():
-            # Order matters: build_dir must come before F-Prime. get_build_cache_path
-            # returns the first match, and the project root resolves to a relative path
-            # of "." which would match any existing directory. Placing build_dir first
-            # ensures the project root correctly maps to the build cache root.
+            # build_dir must precede F-Prime: first match wins in get_build_cache_path
             return [self.build_dir.resolve(), (self.build_dir / "F-Prime").resolve()]
 
         build_dir_resolved = self.build_dir.resolve()
