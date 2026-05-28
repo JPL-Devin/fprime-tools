@@ -55,7 +55,6 @@ class SettingType(Enum):
     STRING = 2
 
 
-
 def find_fprime(settings: dict) -> Path:
     """
     Finds F prime by recursing parent to parent until a matching directory is found.

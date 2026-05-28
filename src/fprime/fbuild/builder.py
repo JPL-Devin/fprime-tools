@@ -609,7 +609,9 @@ class Build:
                 default_options = default_options_text.split("\n")
                 default_cmake_options = {
                     option: value
-                    for (option, value) in [split_pair(item) for item in default_options]
+                    for (option, value) in [
+                        split_pair(item) for item in default_options
+                    ]
                     if option != ""
                 }
                 cmake_args.update(default_cmake_options)
@@ -620,9 +622,10 @@ class Build:
             # and we assume v3 compliance), use the new UT API and preserve the
             # build type.
             fw_cmake_arg = cmake_args.get("FPRIME_FRAMEWORK_PATH")
-            v3_assumed = fw_cmake_arg is None or (
-                Path(fw_cmake_arg) / "cmake" / "autocoder"
-            ).exists()
+            v3_assumed = (
+                fw_cmake_arg is None
+                or (Path(fw_cmake_arg) / "cmake" / "autocoder").exists()
+            )
             if v3_assumed and self.build_type == BuildType.BUILD_TESTING:
                 cmake_args["BUILD_TESTING"] = "ON"
                 cmake_args["CMAKE_BUILD_TYPE"] = user_cmake_args.get(
