@@ -155,3 +155,17 @@ def test_settings():
         assert (
             case["expected"] == results
         ), f'{fp}: Expected {case["expected"]}, got {results}'
+
+
+def test_settings_no_ini():
+    """When no settings.ini exists, no defaults are supplied."""
+    fp = full_path("settings-data/nonexistent-settings.ini")
+    results = IniSettings.load(fp)
+    # Only environment (empty) should be present; no defaulted keys
+    assert "framework_path" not in results
+    assert "project_root" not in results
+    assert "default_toolchain" not in results
+    assert "library_locations" not in results
+    assert "install_destination" not in results
+    assert "settings_file" not in results
+    assert results["environment"] == {}

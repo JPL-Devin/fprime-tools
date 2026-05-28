@@ -604,27 +604,26 @@ class Build:
                 """Process an item into a two-tuple always"""
                 return tuple([*item.strip().split("=", 1), ""][:2])
 
-            default_options_text = self.get_settings("default_cmake_options", None)
-            default_options = default_options_text.split("\n")
-
-            default_cmake_options = {
-                option: value
-                for (option, value) in [split_pair(item) for item in default_options]
-                if option != ""
-            }
-
-            cmake_args.update(default_cmake_options)  # default_cmake_options
+            default_options_text = self.get_settings("default_cmake_options", "")
+            if default_options_text:
+                default_options = default_options_text.split("\n")
+                default_cmake_options = {
+                    option: value
+                    for (option, value) in [split_pair(item) for item in default_options]
+                    if option != ""
+                }
+                cmake_args.update(default_cmake_options)
             cmake_args.update(user_cmake_args)  # User-supplied values from command line
             cmake_args.update(self.get_cmake_args())  # FPRIME_* values (settings.ini)
 
-            # When the new v3 autocoder directory exists, this means we can use the new UT api and preserve the build type
-            v3_autocoder_directory = Path(
-                cmake_args.get("FPRIME_FRAMEWORK_PATH") / "cmake" / "autocoder"
-            )
-            if (
-                v3_autocoder_directory.exists()
-                and self.build_type == BuildType.BUILD_TESTING
-            ):
+            # When the v3 autocoder directory exists (or framework path is unset
+            # and we assume v3 compliance), use the new UT API and preserve the
+            # build type.
+            fw_cmake_arg = cmake_args.get("FPRIME_FRAMEWORK_PATH")
+            v3_assumed = fw_cmake_arg is None or (
+                Path(fw_cmake_arg) / "cmake" / "autocoder"
+            ).exists()
+            if v3_assumed and self.build_type == BuildType.BUILD_TESTING:
                 cmake_args["BUILD_TESTING"] = "ON"
                 cmake_args["CMAKE_BUILD_TYPE"] = user_cmake_args.get(
                     "CMAKE_BUILD_TYPE", "Debug"
@@ -647,17 +646,17 @@ class Build:
 
     def purge_install(self):
         """Purge the install directory"""
-        assert (
-            "install_destination" in self.settings
-        ), "install_destination not present in settings"
-        self.cmake.purge(self.settings["install_destination"])
+        install_dest = self.settings.get("install_destination")
+        if install_dest is None:
+            return
+        self.cmake.purge(install_dest)
 
     def install_dest_exists(self) -> Path:
         """Check if the install destination exists and returns the path if it does"""
-        assert (
-            "install_destination" in self.settings
-        ), "install_destination not present in settings"
-        path = Path(self.settings["install_destination"])
+        install_dest = self.settings.get("install_destination")
+        if install_dest is None:
+            return None
+        path = Path(install_dest)
         return path if path.exists() else None
 
     def refresh(self):

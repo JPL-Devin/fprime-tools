@@ -55,6 +55,7 @@ class SettingType(Enum):
     STRING = 2
 
 
+
 def find_fprime(settings: dict) -> Path:
     """
     Finds F prime by recursing parent to parent until a matching directory is found.
@@ -210,53 +211,70 @@ class IniSettings:
             print(f"[WARNING] {settings_file} does not exist", file=sys.stderr)
 
         settings = {
-            "settings_file": settings_file,
             "_cmake_project_root": settings_file.parent,
         }
+        if settings_file.exists():
+            settings["settings_file"] = settings_file
+
+        # When no settings.ini exists, supply no defaults — let CMake infer.
+        # When settings.ini exists, use the declared field defaults.
+        has_ini = confparse is not None
 
         # Read fprime and platform settings from the "fprime" section
         for key, settings_type, default in (
             IniSettings.FPRIME_FIELDS + IniSettings.PLATFORM_FIELDS
         ):
-            settings[key] = IniSettings.read_setting(
-                confparse, settings, "fprime", key, settings_type, default
+            effective_default = default if has_ini else None
+            value = IniSettings.read_setting(
+                confparse, settings, "fprime", key, settings_type, effective_default
             )
+            if value is not None:
+                settings[key] = value
 
         # Calculate the platform if not specified
         if not platform or platform == "default":
             platform = (
-                settings["default_ut_toolchain"]
+                settings.get("default_ut_toolchain", "native")
                 if is_ut
-                else settings["default_toolchain"]
+                else settings.get("default_toolchain", "native")
             )
 
         # Read platform settings overtop of fprime settings
         for key, settings_type, default in IniSettings.PLATFORM_FIELDS:
-            settings[key] = IniSettings.read_setting(
+            effective_default = settings.get(key, default) if has_ini else None
+            value = IniSettings.read_setting(
                 confparse,
                 settings,
                 platform,
                 key,
                 settings_type,
-                settings.get(key, default),
+                effective_default,
             )
+            if value is not None:
+                settings[key] = value
 
-        settings["environment"] = IniSettings.load_environment(
-            settings["environment_file"]
-        )
+        if settings.get("environment_file") is not None:
+            settings["environment"] = IniSettings.load_environment(
+                settings["environment_file"]
+            )
+        else:
+            settings["environment"] = {}
         del settings["_cmake_project_root"]
 
         # add _fprime_packages to library locations
-        try:
-            if os.path.exists(settings["project_root"] / "_fprime_packages"):
-                # glob all folders
-                for folder in os.listdir(settings["project_root"] / "_fprime_packages"):
-                    settings["library_locations"].append(
-                        Path(settings["project_root"] / "_fprime_packages" / folder)
-                    )
-        except FileNotFoundError:
-            # we shouldn't error out if the _fprime_packages folder doesn't exist
-            pass
+        project_root = settings.get("project_root")
+        if project_root is not None:
+            try:
+                packages_dir = project_root / "_fprime_packages"
+                if os.path.exists(packages_dir):
+                    if settings.get("library_locations") is None:
+                        settings["library_locations"] = []
+                    for folder in os.listdir(packages_dir):
+                        settings["library_locations"].append(
+                            Path(packages_dir / folder)
+                        )
+            except FileNotFoundError:
+                pass
 
         return settings
 
