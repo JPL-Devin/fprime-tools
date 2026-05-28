@@ -285,9 +285,10 @@ class CMakeHandler:
             ),
             args.keys(),
         )
+        build_dir_abs = os.path.abspath(build_dir)
         cmake_args = ["-S", source_dir] + list(fleshed_args)
         if preset:
-            cmake_args.extend(["--preset", preset])
+            cmake_args.extend(["--preset", preset, "-B", build_dir_abs])
         # Creating a file to mark the directory as a F Prime directory
         (Path(build_dir) / ".fprime-build-dir").touch()
         self.cmake_validate_source_dir(source_dir)
