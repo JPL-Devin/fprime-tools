@@ -214,10 +214,9 @@ class IniSettings:
             if value is not None:
                 settings[key] = value
 
-        if settings.get("environment_file") is not None:
-            settings["environment"] = IniSettings.load_environment(
-                settings["environment_file"]
-            )
+        env_file = settings.get("environment_file") or settings.get("settings_file")
+        if env_file is not None:
+            settings["environment"] = IniSettings.load_environment(env_file)
         else:
             settings["environment"] = {}
         del settings["_cmake_project_root"]

@@ -80,7 +80,7 @@ def test_settings():
             "expected": {
                 "settings_file": full_path("settings-data/settings-environment.ini"),
                 "framework_path": full_path(".."),
-                "environment": {},
+                "environment": {"MY_VARIABLE": "my value", "MY_VARIABLE_2": "abc:123"},
             },
         },
     ]
