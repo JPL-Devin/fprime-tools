@@ -604,7 +604,7 @@ class Build:
                 """Process an item into a two-tuple always"""
                 return tuple([*item.strip().split("=", 1), ""][:2])
 
-            default_options_text = self.get_settings("default_cmake_options", None)
+            default_options_text = self.get_settings("default_cmake_options", "")
             if default_options_text:
                 default_options = default_options_text.split("\n")
                 default_cmake_options = {
