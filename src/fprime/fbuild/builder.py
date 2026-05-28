@@ -741,12 +741,17 @@ class Build:
             if build_cache is not None
             else BuildType.get_public_types()
         )
+        preset = base.settings.get("preset") if base.settings else None
+        preset = preset if preset else None
         builds = []
         for build_type in build_types:
             build = Build(build_type, base.cmake_root, verbose=base.cmake.verbose)
             try:
                 build.load(
-                    base.platform, build_dir=build_cache, skip_validation=ignore_invalid
+                    base.platform,
+                    build_dir=build_cache,
+                    skip_validation=ignore_invalid,
+                    preset=preset,
                 )
                 builds.append(build)
             except InvalidBuildCacheException as error:
