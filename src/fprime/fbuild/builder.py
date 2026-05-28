@@ -410,17 +410,13 @@ class Build:
         # 6. Framework fallback
         glob_patterns += [_cmake_path(framework_path)] if framework_path else []
 
-        # Glob each pattern individually, preserving priority order and deduplicating
-        seen = set()
-        results: List[str] = []
-        for pattern in glob_patterns:
-            for match in glob.glob(pattern):
-                resolved = str(Path(match).resolve())
-                if resolved not in seen:
-                    seen.add(resolved)
-                    results.append(resolved)
-
-        return results
+        # Glob each pattern individually, then deduplicate preserving priority order
+        matches = [
+            str(Path(m).resolve())
+            for pattern in glob_patterns
+            for m in glob.glob(pattern)
+        ]
+        return list(dict.fromkeys(matches))
 
     def find_toolchain(self):
         """Locates a toolchain file in known locations.
