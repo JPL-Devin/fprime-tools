@@ -375,6 +375,12 @@ def parse_args(args):
     common_parser.add_argument(
         "--ut", action="store_true", help="Run command against unit testing build type"
     )
+    common_parser.add_argument(
+        "--preset",
+        default=None,
+        type=str,
+        help="CMake preset name. Overrides 'preset' setting in settings.ini.",
+    )
 
     # Main parser for the whole application
     parser = argparse.ArgumentParser(

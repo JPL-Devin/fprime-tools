@@ -73,7 +73,12 @@ def run_fbuild_cli(
             # Sets Ninja as the default build system
             cmake_args["CMAKE_GENERATOR"] = "Ninja"
 
-        build.generate(cmake_args)
+        preset = build.get_settings("preset", "") or None
+
+        if preset:
+            print(f"[INFO] Using CMake preset '{preset}'")
+
+        build.generate(cmake_args, preset=preset)
     elif parsed.command == "purge":
         # Since purge does not load its "base", we need to overload the platform
         purge(build, parsed)

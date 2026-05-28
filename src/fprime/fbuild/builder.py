@@ -54,7 +54,9 @@ class Build:
     """
 
     VALID_CMAKE_LIST = re.compile(r"^\s*project\(.*\)", re.MULTILINE)
-    CMAKE_DEFAULT_BUILD_NAME = "build-fprime-automatic-{platform}{suffix}"
+    CMAKE_DEFAULT_BUILD_NAME = (
+        "build-fprime-automatic-{platform}{preset_suffix}{suffix}"
+    )
 
     def __init__(self, build_type: BuildType, project: Path, verbose: bool = False):
         """Constructs a build object from its constituent parts
@@ -76,7 +78,13 @@ class Build:
         """Returns the verbose setting of the build"""
         return self.cmake.verbose
 
-    def invent(self, platform: str = None, build_dir: Path = None, force=False):
+    def invent(
+        self,
+        platform: str = None,
+        build_dir: Path = None,
+        force=False,
+        preset: str = None,
+    ):
         """Invents a build path from a given platform
 
         Sets this build up as a new build that would be used as as part of a generate step. This directory must not
@@ -91,11 +99,12 @@ class Build:
             platform:   name of platform to build against. None will use default from settings.ini or without this
                         setting, "native". Defaults to None.
             build_dir:  explicitly sets the build path to allow for user override of default
+            preset:     CMake preset name from CLI. Overrides settings.ini preset when provided.
 
         Raises:
             InvalidBuildCacheException: a build cache already exists as it should not
         """
-        self.__setup_default(platform, build_dir)
+        self.__setup_default(platform, build_dir, preset=preset)
         if self.build_dir.exists():
             msg = f"{self.build_dir} already exists."
             if not force:
@@ -164,6 +173,9 @@ class Build:
                 and platform != "default"
                 else ""
             )
+            active_preset = self.settings.get("preset", "") if self.settings else ""
+            if active_preset:
+                gen_args += f" --preset {active_preset}"
         msg = f"'{self.build_dir}' is not a valid build cache. Generate this build cache with 'fprime-util generate{gen_args} ...'"
         raise InvalidBuildCacheException(
             msg,
@@ -229,8 +241,12 @@ class Build:
             Path to a build cache directory
 
         """
+        preset = self.settings.get("preset", "")
+        preset_suffix = f"-{preset}" if preset else ""
         return self.cmake_root / Build.CMAKE_DEFAULT_BUILD_NAME.format(
-            platform=self.platform, suffix=self.build_type.get_suffix()
+            platform=self.platform,
+            preset_suffix=preset_suffix,
+            suffix=self.build_type.get_suffix(),
         )
 
     @staticmethod
@@ -589,13 +605,14 @@ class Build:
             environment=self.settings.get("environment", None),
         )
 
-    def generate(self, user_cmake_args):
+    def generate(self, user_cmake_args, preset=None):
         """Generates a build given CMake arguments
 
         This will run a generate step of the cmake build process. This will take in any argument used/passed to CMake.
 
         Args:
             user_cmake_args: cmake arguments to pass into the generate step
+            preset: CMake preset name to pass via --preset. None means no preset.
         """
         cmake_args = {}
         try:
@@ -637,6 +654,7 @@ class Build:
                 self.build_dir,
                 cmake_args,
                 environment=self.settings.get("environment", None),
+                preset=preset,
             )
         except CMakeException as cexc:
             raise GenerateException(str(cexc), cexc.exit_code) from cexc
@@ -738,7 +756,9 @@ class Build:
                 raise
         return builds
 
-    def __setup_default(self, platform: str = None, build_dir: Path = None):
+    def __setup_default(
+        self, platform: str = None, build_dir: Path = None, preset: str = None
+    ):
         """Sets up default build
 
         Sets this build up before determining if it is a pre-generated, or post-generated build.
@@ -750,6 +770,7 @@ class Build:
             platform:   name of platform to build against. None will use default from settings.ini or without this
                         setting, "native". Defaults to None.
             build_dir:  explicitly sets the build path to allow for user override of default
+            preset:     CMake preset name from CLI. Overrides settings.ini preset when provided.
         """
         assert self.settings is None, "Already setup it is invalid to re-setup"
         assert self.platform is None, "Already setup it is invalid to re-setup"
@@ -760,6 +781,10 @@ class Build:
             platform,
             self.build_type == BuildType.BUILD_TESTING,
         )
+
+        # CLI --preset overrides settings.ini preset
+        if preset is not None:
+            self.settings["preset"] = preset
 
         if platform is not None and platform != "default":
             self.platform = platform

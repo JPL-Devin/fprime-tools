@@ -86,6 +86,7 @@ class IniSettings:
         ("project_root", SettingType.PATH, lambda settings: settings["framework_path"]),
         ("default_toolchain", SettingType.STRING, "native"),
         ("default_ut_toolchain", SettingType.STRING, "native"),
+        ("preset", SettingType.STRING, ""),
         ("library_locations", SettingType.PATH_LIST, []),
         ("component_cookiecutter", SettingType.STRING, "default"),
         ("deployment_cookiecutter", SettingType.STRING, "default"),

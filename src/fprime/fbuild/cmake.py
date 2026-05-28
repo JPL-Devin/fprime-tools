@@ -256,7 +256,13 @@ class CMakeHandler:
         return self._read_values_from_cache(fields, build_dir=cmake_dir)
 
     def generate_build(
-        self, source_dir, build_dir, args=None, ignore_output=False, environment=None
+        self,
+        source_dir,
+        build_dir,
+        args=None,
+        ignore_output=False,
+        environment=None,
+        preset=None,
     ):
         """Generate a build directory for purposes of the build.
 
@@ -265,6 +271,7 @@ class CMakeHandler:
         :param args: arguments to hand to CMake.
         :param ignore_output: do not print the output where the user can see it
         :param environment: environment to set when generating
+        :param preset: CMake preset name to pass via --preset. None means no preset.
         """
 
         if not os.path.exists(build_dir):
@@ -278,11 +285,15 @@ class CMakeHandler:
             ),
             args.keys(),
         )
+        build_dir_abs = os.path.abspath(build_dir)
+        cmake_args = ["-S", source_dir] + list(fleshed_args)
+        if preset:
+            cmake_args.extend(["--preset", preset, "-B", build_dir_abs])
         # Creating a file to mark the directory as a F Prime directory
         (Path(build_dir) / ".fprime-build-dir").touch()
         self.cmake_validate_source_dir(source_dir)
         self._run_cmake(
-            ["-S", source_dir] + list(fleshed_args),
+            cmake_args,
             workdir=build_dir,
             print_output=not ignore_output,
             write_override=True,
