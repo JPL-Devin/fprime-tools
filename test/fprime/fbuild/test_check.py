@@ -1,7 +1,5 @@
 """Tests for fprime.fbuild.check"""
 
-from pathlib import Path
-
 from fprime.fbuild.check import Check
 
 
