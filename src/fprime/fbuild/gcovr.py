@@ -214,8 +214,7 @@ class Gcovr(ExecutableAction):
             ("--test-sources", "[coverage only] Include unit test sources in coverage"),
             (
                 "--enable-fw-assert-branch-coverage",
-                "[coverage only] Include FW_ASSERT branches in branch coverage "
-                "(excluded by default because the error path is rarely tested)",
+                "[coverage only] Include FW_ASSERT branches in branch coverage",
             ),
         ]
 
