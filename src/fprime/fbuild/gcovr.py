@@ -148,6 +148,25 @@ class Gcovr(ExecutableAction):
         combined_env = os.environ.copy()
         combined_env.update(builder.settings.get("environment", {}))
         # gcovr is an unhappy beast
+        # Branch coverage cleanup: exclude compiler-generated branches
+        # that produce misleading coverage numbers in C++.
+        branch_cleanup_args = [
+            "--exclude-throw-branches",
+            "--exclude-unreachable-branches",
+        ]
+
+        # Exclude FW_ASSERT branches by default.  Each FW_ASSERT(cond)
+        # expands to a ternary whose error path is virtually never taken,
+        # inflating uncovered-branch counts.  The flag
+        # --enable-fw-assert-branch-coverage turns this exclusion off.
+        if not options.get("--enable-fw-assert-branch-coverage", False):
+            branch_cleanup_args.extend(
+                [
+                    "--exclude-branches-by-pattern",
+                    r".*FW_ASSERT\(.*",
+                ]
+            )
+
         cli_args = (
             [
                 "gcovr",
@@ -157,6 +176,7 @@ class Gcovr(ExecutableAction):
             ]
             + jobs_args
             + list(itertools.chain.from_iterable(exclusion_filter_bases))
+            + branch_cleanup_args
             + [
                 "--exclude",
                 f"{framework_path}/Autocoders",
@@ -192,6 +212,10 @@ class Gcovr(ExecutableAction):
             ("--type-ac", "[coverage only] Include data type autocode in coverage"),
             ("--test-ac", "[coverage only] Include data test autocode in coverage"),
             ("--test-sources", "[coverage only] Include unit test sources in coverage"),
+            (
+                "--enable-fw-assert-branch-coverage",
+                "[coverage only] Include FW_ASSERT branches in branch coverage",
+            ),
         ]
 
     def allows_pass_args(self):
