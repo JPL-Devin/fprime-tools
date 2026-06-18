@@ -504,12 +504,12 @@ class Build:
         return self.cmake.get_cmake_module(path, self.build_dir)
 
     def _load_build_cache_locations(self) -> List[Path]:
-        """Parse the locations file once and return the result.
+        """Parse the binary locations file once and return the result.
 
-        Reads from `fprime-locations.fprime-util` at the root of the build cache. Each line in
-        the file is a path (relative or absolute). Relative paths are resolved with respect to
-        the build cache directory (the location of the file). Blank lines and lines starting
-        with '#' are ignored.
+        Reads from `fprime-binary-locations.fprime-util` at the root of the build cache. Each
+        line in the file is a path (relative or absolute). Relative paths are resolved with
+        respect to the build cache directory (the location of the file). Blank lines and lines
+        starting with '#' are ignored.
 
         If the file does not exist, falls back to the build cache root and build cache/F-Prime.
         If the file exists but contains no valid (existing) paths, raises
@@ -523,7 +523,7 @@ class Build:
             InvalidBuildCacheException: if the locations file exists but yields no valid paths,
                 or if any path resolves outside the build cache directory
         """
-        locations_file = self.build_dir / "fprime-locations.fprime-util"
+        locations_file = self.build_dir / "fprime-binary-locations.fprime-util"
         if not locations_file.exists():
             # build_dir must precede F-Prime: first match wins in get_build_cache_path
             return [self.build_dir.resolve(), (self.build_dir / "F-Prime").resolve()]
