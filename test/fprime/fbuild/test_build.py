@@ -284,6 +284,93 @@ def test_get_build_cache_locations_outside_build_dir(tmp_path):
         _make_build(tmp_path, locations_content="../escape\n")
 
 
+# --- Tests for _load_source_locations ---
+
+
+def _make_build_for_source_locations(tmp_path, source_content=None):
+    """Helper to create a Build with a minimal fake build cache directory.
+
+    Bypasses CMake and settings loading to isolate _load_source_locations.
+    If source_content is not None, writes it to fprime-source-locations.fprime-util
+    inside tmp_path.
+    """
+    if source_content is not None:
+        (tmp_path / "fprime-source-locations.fprime-util").write_text(source_content)
+    with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
+        build = fprime.fbuild.builder.Build(
+            fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+        )
+    build.build_dir = tmp_path
+    build.settings = {
+        "framework_path": tmp_path / "fprime",
+        "library_locations": [],
+        "project_root": tmp_path / "project",
+    }
+    build._source_locations = build._load_source_locations()
+    return build
+
+
+def test_get_source_locations_no_file(tmp_path):
+    """When fprime-source-locations.fprime-util is absent, fall back to settings."""
+    fw = tmp_path / "fprime"
+    fw.mkdir()
+    proj = tmp_path / "project"
+    proj.mkdir()
+    build = _make_build_for_source_locations(tmp_path)
+    locations = build.get_source_locations()
+    assert locations == [fw.resolve(), proj.resolve()]
+
+
+def test_get_source_locations_with_file(tmp_path):
+    """When fprime-source-locations.fprime-util exists, read paths from it."""
+    src_a = tmp_path / "src-a"
+    src_a.mkdir()
+    src_b = tmp_path / "src-b"
+    src_b.mkdir()
+
+    content = f"# comment\n{src_a}\n\n{src_b}\n"
+    build = _make_build_for_source_locations(tmp_path, source_content=content)
+    locations = build.get_source_locations()
+    assert locations == [src_a.resolve(), src_b.resolve()]
+
+
+def test_get_source_locations_empty_file(tmp_path):
+    """An empty source locations file should raise."""
+    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException):
+        _make_build_for_source_locations(tmp_path, source_content="\n")
+
+
+def test_get_source_locations_no_valid_paths(tmp_path):
+    """A file listing only non-existent paths should raise."""
+    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException):
+        _make_build_for_source_locations(tmp_path, source_content="/nonexistent/path\n")
+
+
+def test_get_source_locations_comments_only(tmp_path):
+    """A file with only comments and blank lines should raise."""
+    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException):
+        _make_build_for_source_locations(
+            tmp_path, source_content="# just a comment\n\n  \n"
+        )
+
+
+def test_get_source_locations_mixed_valid_invalid(tmp_path):
+    """Valid paths are kept; non-existent paths are silently filtered out."""
+    valid = tmp_path / "valid-src"
+    valid.mkdir()
+    content = f"{valid}\n/nonexistent/dir\n"
+    build = _make_build_for_source_locations(tmp_path, source_content=content)
+    assert build.get_source_locations() == [valid.resolve()]
+
+
+def test_get_source_locations_relative_paths(tmp_path):
+    """Relative paths are resolved relative to the build directory."""
+    rel_dir = tmp_path / "relative-src"
+    rel_dir.mkdir()
+    build = _make_build_for_source_locations(tmp_path, source_content="relative-src\n")
+    assert build.get_source_locations() == [rel_dir.resolve()]
+
+
 # --- Tests for _load_settings_from_cache ---
 
 

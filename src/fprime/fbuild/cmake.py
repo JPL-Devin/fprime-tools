@@ -40,6 +40,7 @@ class CMakeHandler:
         self._cmake_cache = None
         self.verbose = False
         self.cached_help_targets = []
+        self.source_locations = None
         try:
             self._run_cmake(["--help"], print_output=False)
         except Exception as exc:
@@ -163,9 +164,17 @@ class CMakeHandler:
         Gets the locations that can be used as the root of an include tree. Common directories are placed in these
         include locations. These include standard builds, configs, etc.
 
+        When source_locations has been set (from fprime-source-locations.fprime-util),
+        those are used directly. Otherwise falls back to reading FPRIME_PROJECT_ROOT,
+        FPRIME_LIBRARY_LOCATIONS, and FPRIME_FRAMEWORK_PATH from the CMake cache.
+
         :param cmake_dir: directory of a CMake build, or directory containing a CMake project
         :return: []  List of include locations. Order: project, lib, lib, ..., F prime core
         """
+        if self.source_locations is not None:
+            mapped = [os.path.abspath(str(loc)) for loc in self.source_locations]
+            return list(collections.OrderedDict.fromkeys(mapped).keys())
+
         # Reading config fields. If the cmake_dir is a project dir, a build cache may be setup.
         # !! Note: using a project dir will cause file-system side effects, and incur a one-time cost to setup cache !!
         config_fields = self.get_fprime_configuration(

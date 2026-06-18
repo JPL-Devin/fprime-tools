@@ -71,6 +71,7 @@ class Build:
         self.platform = None
         self.build_dir = None
         self._build_cache_locations = None
+        self._source_locations = None
         self.cmake = CMakeHandler()
         self.cmake.set_verbose(verbose)
 
@@ -141,6 +142,8 @@ class Build:
         """
         self.__setup_default(platform, build_dir)
         self._build_cache_locations = self._load_build_cache_locations()
+        self._source_locations = self._load_source_locations()
+        self.cmake.source_locations = self._source_locations
 
         if skip_validation:
             if self.build_dir is not None and (
@@ -558,6 +561,74 @@ class Build:
             List of resolved Path objects to iterate when searching the build cache.
         """
         return self._build_cache_locations
+
+    def _load_source_locations(self) -> List[Path]:
+        """Parse the source locations file once and return the result.
+
+        Reads from `fprime-source-locations.fprime-util` at the root of the build cache.
+        Each line in the file is a source directory path (absolute). Blank lines and
+        lines starting with '#' are ignored.
+
+        If the file does not exist, falls back to assembling source locations from
+        the traditional settings: framework_path, library_locations, and project_root.
+
+        Returns:
+            List of resolved Path objects representing source tree roots.
+
+        Raises:
+            InvalidBuildCacheException: if the locations file exists but yields no
+                valid paths
+        """
+        locations_file = self.build_dir / "fprime-source-locations.fprime-util"
+        if not locations_file.exists():
+            return self._assemble_source_locations_from_settings()
+
+        locations = []
+        with open(locations_file, "r") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                path = Path(line)
+                if not path.is_absolute():
+                    path = (self.build_dir / path).resolve()
+                else:
+                    path = path.resolve()
+                locations.append(path)
+        locations = [loc for loc in locations if loc.exists()]
+        if not locations:
+            msg = f"'{locations_file}' exists but contains no valid source locations. Regenerate the build cache with 'fprime-util generate -f'."
+            raise InvalidBuildCacheException(msg, str(self.build_dir))
+        return locations
+
+    def _assemble_source_locations_from_settings(self) -> List[Path]:
+        """Fallback: assemble source locations from settings.
+
+        Uses framework_path, library_locations, and project_root to build the
+        list of source tree roots. This preserves backwards compatibility when
+        the fprime-source-locations.fprime-util file is not present.
+
+        Returns:
+            List of resolved Path objects representing source tree roots.
+        """
+        locations = []
+        framework_path = self.get_settings("framework_path", None)
+        if framework_path is not None:
+            locations.append(Path(framework_path).resolve())
+        for lib in self.get_settings("library_locations", []):
+            locations.append(Path(lib).resolve())
+        project_root = self.get_settings("project_root", None)
+        if project_root is not None:
+            locations.append(Path(project_root).resolve())
+        return locations
+
+    def get_source_locations(self) -> List[Path]:
+        """Return the cached list of source tree locations.
+
+        Returns:
+            List of resolved Path objects representing source tree roots.
+        """
+        return self._source_locations
 
     def get_build_cache_path(self, context: Path) -> Path:
         """Get the path within the build cache associated with the given context
