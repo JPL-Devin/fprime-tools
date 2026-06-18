@@ -96,9 +96,7 @@ def fpp_generate_implementation(
     """
 
     prefixes = [
-        build.get_settings("framework_path", ""),
-        *build.get_settings("library_locations", []),
-        build.get_settings("project_root", ""),
+        *build.get_source_locations(),
         *build.get_build_cache_locations(),
     ]
 
