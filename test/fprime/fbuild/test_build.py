@@ -205,11 +205,11 @@ def _make_build(tmp_path, locations_content=None):
     """Helper to create a Build with a minimal fake build cache directory.
 
     Bypasses CMake and settings loading to isolate _load_build_cache_locations.
-    If locations_content is not None, writes it to fprime-locations.fprime-util
+    If locations_content is not None, writes it to fprime-binary-locations.fprime-util
     inside tmp_path.
     """
     if locations_content is not None:
-        (tmp_path / "fprime-locations.fprime-util").write_text(locations_content)
+        (tmp_path / "fprime-binary-locations.fprime-util").write_text(locations_content)
     with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
         build = fprime.fbuild.builder.Build(
             fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
@@ -220,7 +220,7 @@ def _make_build(tmp_path, locations_content=None):
 
 
 def test_get_build_cache_locations_no_file(tmp_path):
-    """When fprime-locations.fprime-util is absent, fall back to F-Prime/ and build_dir."""
+    """When fprime-binary-locations.fprime-util is absent, fall back to F-Prime/ and build_dir."""
     build = _make_build(tmp_path)
     locations = build.get_build_cache_locations()
     assert locations == [
@@ -230,7 +230,7 @@ def test_get_build_cache_locations_no_file(tmp_path):
 
 
 def test_get_build_cache_locations_with_file(tmp_path):
-    """When fprime-locations.fprime-util exists, read paths from it."""
+    """When fprime-binary-locations.fprime-util exists, read paths from it."""
     # Create directories that will be listed in the file
     rel_dir = tmp_path / "my-lib"
     rel_dir.mkdir()
