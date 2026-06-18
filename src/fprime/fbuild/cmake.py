@@ -171,7 +171,7 @@ class CMakeHandler:
         :param cmake_dir: directory of a CMake build, or directory containing a CMake project
         :return: []  List of include locations. Order: project, lib, lib, ..., F prime core
         """
-        if self.source_locations is not None:
+        if self.source_locations:
             mapped = [os.path.abspath(str(loc)) for loc in self.source_locations]
             return list(collections.OrderedDict.fromkeys(mapped).keys())
 

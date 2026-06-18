@@ -142,8 +142,6 @@ class Build:
         """
         self.__setup_default(platform, build_dir)
         self._build_cache_locations = self._load_build_cache_locations()
-        self._source_locations = self._load_source_locations()
-        self.cmake.source_locations = self._source_locations
 
         if skip_validation:
             if self.build_dir is not None and (
@@ -153,6 +151,7 @@ class Build:
                     self._load_settings_from_cache()
                 except (InvalidBuildCacheException, CMakeException):
                     pass  # Best-effort: cache may be missing or stale
+            self._setup_source_locations()
             return
         # Validate this is a build cache by finding either of two known files
         # One is from F´, other from CMake, for redundancy
@@ -162,6 +161,7 @@ class Build:
         ):
             if (self.build_dir / "CMakeCache.txt").exists():
                 self._load_settings_from_cache()
+            self._setup_source_locations()
             return
 
         # Message for hard-supplied --build-cache message
@@ -621,6 +621,15 @@ class Build:
         if project_root is not None:
             locations.append(Path(project_root).resolve())
         return locations
+
+    def _setup_source_locations(self):
+        """Load source locations and propagate to CMakeHandler.
+
+        Must be called after _load_settings_from_cache() so the fallback
+        assembly uses fully-resolved settings.
+        """
+        self._source_locations = self._load_source_locations()
+        self.cmake.source_locations = self._source_locations
 
     def get_source_locations(self) -> List[Path]:
         """Return the cached list of source tree locations.
