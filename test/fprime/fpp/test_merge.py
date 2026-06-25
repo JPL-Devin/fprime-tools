@@ -402,3 +402,25 @@ def test_perform_auto_merge_aborts_when_only_one_target_exists(tmp_path):
     )
     assert not ok
     assert thpp.exists() and tcpp.exists()
+
+
+def test_orphaned_definition_warning_flags_member_without_decl():
+    hpp = (
+        "class Comp {\n"
+        "  public:\n"
+        "    Comp();\n"
+        "    void kept_handler();\n"
+        "};\n"
+    )
+    cpp = (
+        '#include "Comp.hpp"\n'
+        "namespace M {\n" + _banner("Handler implementations for commands") + "\n"
+        "void Comp ::kept_handler() {\n  // body\n}\n"
+        "void Comp ::removed_handler() {\n  // orphaned hand body\n}\n"
+        "static void localHelper() {\n  // not a class member\n}\n"
+        "}  // namespace M\n"
+    )
+    warnings = merge._orphaned_definition_warnings(hpp, cpp)
+    assert any("removed_handler" in w for w in warnings)
+    assert not any("kept_handler" in w for w in warnings)
+    assert not any("localHelper" in w for w in warnings)

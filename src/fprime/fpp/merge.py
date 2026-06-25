@@ -42,6 +42,8 @@ CLASS_CLOSE_RE = re.compile(r"^\s*};\s*$")
 # A namespace-closing brace: a lone "}" (optionally with a trailing comment), no
 # semicolon (which would make it a struct/enum close instead).
 NAMESPACE_CLOSE_RE = re.compile(r"^\s*\}\s*(?://.*)?$")
+# An identifier immediately followed by "(": a declaration/definition name.
+DECL_NAME_RE = re.compile(r"(~?[A-Za-z_]\w*)\s*\(")
 
 HASH_LENGTH = 16
 
@@ -400,6 +402,40 @@ def merge_hpp(existing_text: str, template_text: str) -> Tuple[str, List[str]]:
     return render_impl(result), warnings
 
 
+def _orphaned_definition_warnings(merged_hpp: str, merged_cpp: str) -> List[str]:
+    """Warn about class-member definitions absent from the merged HPP declarations.
+
+    Catches members orphaned by a model change (their declaration was regenerated
+    away while the definition was kept, per never-delete) which would otherwise
+    fail to compile silently. Only class-qualified (``Class ::``) definitions are
+    considered, so file-local helpers and hand helpers declared in the header are
+    never flagged.
+    """
+    declared = {match.group(1) for match in DECL_NAME_RE.finditer(merged_hpp)}
+    parsed = parse_impl(merged_cpp, trailer_re=NAMESPACE_CLOSE_RE)
+    warnings: List[str] = []
+    seen: set = set()
+    for section in parsed.sections:
+        try:
+            blocks = split_functions(section.body_lines)
+        except ImplMergeError:
+            continue
+        for block in blocks:
+            signature = "\n".join(block.lines)
+            head = signature.split("(", 1)[0]
+            if "::" not in head:
+                continue
+            if block.name in declared or block.name in seen:
+                continue
+            seen.add(block.name)
+            warnings.append(
+                f"{block.name} is defined in the .cpp but no longer declared in the "
+                ".hpp (model removed it?); kept to avoid deleting hand code - remove "
+                "it manually or restore the model"
+            )
+    return warnings
+
+
 def perform_auto_merge(
     template_hpp: Path,
     template_cpp: Path,
@@ -454,7 +490,8 @@ def perform_auto_merge(
 
     template_hpp.unlink()
     template_cpp.unlink()
-    for warning in hpp_warnings + cpp_warnings:
+    orphan_warnings = _orphaned_definition_warnings(merged_hpp, merged_cpp)
+    for warning in hpp_warnings + cpp_warnings + orphan_warnings:
         print(f"[WARNING] {warning}")
     print(f"[INFO] Auto-merged templates into {target_hpp.name} and {target_cpp.name}.")
     return True
