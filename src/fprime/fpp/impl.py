@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Tuple
 
 from fprime.fbuild.builder import Build
 
+from fprime.fpp import merge
 from fprime.fpp.common import FppUtility
 from fprime.util.code_formatter import ClangFormatter
 from fprime.constants import UT_FILES_TARGET_PATH, UT_TEMPLATE_FILE_SUFFIX
@@ -81,6 +82,7 @@ def fpp_generate_implementation(
     generate_ut: bool,
     generate_test_helpers: bool = False,
     overwrite: bool = False,
+    auto_merge: bool = False,
 ) -> int:
     """
     Generate implementation files from FPP templates.
@@ -93,6 +95,7 @@ def fpp_generate_implementation(
         generate_ut: Generates UT files if set to True
         generate_test_helpers: Generate of test helper code if set to True
         overwrite: Overwrite existing implementation files if set to True
+        auto_merge: Merge generated templates into existing hand files if set to True
     """
 
     prefixes = [
@@ -136,14 +139,45 @@ def fpp_generate_implementation(
 
     if generate_ut:
         _move_ut_templates(output_dir, generated_file_names)
+    else:
+        # Annotate impl templates with section markers/hashes on every impl call.
+        _annotate_impl_templates(output_dir)
 
     if overwrite:
         file_list = glob.glob(f"{output_dir}/*.template.*pp", recursive=False)
         for filename in file_list:
             new_filename = filename.replace(".template", "")
             os.rename(filename, new_filename)
+    elif auto_merge:
+        _auto_merge_impl_templates(output_dir)
 
     return 0
+
+
+def _annotate_impl_templates(output_dir: Path):
+    """Inject section end markers (and HPP section hashes) into impl templates."""
+    for filename in glob.glob(f"{output_dir}/*.template.hpp", recursive=False):
+        merge.annotate_file(Path(filename), with_hash=True)
+    for filename in glob.glob(f"{output_dir}/*.template.cpp", recursive=False):
+        merge.annotate_file(Path(filename), with_hash=False)
+
+
+def _auto_merge_impl_templates(output_dir: Path):
+    """Merge generated impl templates into existing hand files where present."""
+    for hpp_filename in sorted(
+        glob.glob(f"{output_dir}/*.template.hpp", recursive=False)
+    ):
+        template_hpp = Path(hpp_filename)
+        template_cpp = Path(hpp_filename.replace(".template.hpp", ".template.cpp"))
+        if not template_cpp.exists():
+            print(
+                f"[WARNING] No matching {template_cpp.name} for {template_hpp.name}; "
+                "skipping auto merge."
+            )
+            continue
+        target_hpp = template_hpp.with_name(template_hpp.name.replace(".template", ""))
+        target_cpp = template_cpp.with_name(template_cpp.name.replace(".template", ""))
+        merge.perform_auto_merge(template_hpp, template_cpp, target_hpp, target_cpp)
 
 
 def run_fpp_impl(
@@ -171,6 +205,7 @@ def run_fpp_impl(
         parsed.ut,
         parsed.generate_test_helpers,
         parsed.overwrite,
+        parsed.auto_merge,
     )
 
 
@@ -214,11 +249,20 @@ def add_fpp_impl_parsers(
         help="Generate test helper code for hand-coding. Default to False, leveraging the test helpers autocoded by FPP.",
         required=False,
     )
-    impl_parser.add_argument(
+    write_group = impl_parser.add_mutually_exclusive_group()
+    write_group.add_argument(
         "--overwrite",
         action="store_true",
         default=False,
         help="Overwrite contents of current CPP and HPP files. Use with caution.",
+        required=False,
+    )
+    write_group.add_argument(
+        "--auto-merge",
+        action="store_true",
+        default=False,
+        help="Merge generated templates into existing CPP and HPP files. New function "
+        "stubs are added; hand-edited HPP sections abort the merge with a warning.",
         required=False,
     )
     return {"impl": run_fpp_impl}, {"impl": impl_parser}

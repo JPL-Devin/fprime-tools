@@ -108,6 +108,8 @@ Examples:
 
 When the '--ut' flag is specified the unit test implementation templates are created instead, under <path>/test/ut. The user should use the Tester.cpp, Tester.hpp and TestMain.cpp files as their fill-in templates. Other files created can be safely removed as they will be regenerated at build time.
 
+When the '--auto-merge' flag is specified and hand-written <component>.cpp/.hpp files already exist, the freshly generated templates are merged into them: new function stubs (e.g. for newly modeled ports or commands) are appended, and the templates are deleted on success. Existing code is never modified or removed. If a managed HPP section has been hand-edited since it was last generated, the merge for that file is aborted with a warning and the template files are left in place for manual merging. '--auto-merge' cannot be combined with '--overwrite'.
+
 Example:
 
   -- Create Ref/SignalGen Implementation Templates --
@@ -117,6 +119,10 @@ Example:
   -- Create Ref/SignalGen Unit Test Implementation Templates --
   cd Ref/SignalGen
   {EXECUTABLE} impl --ut
+
+  -- Merge new model changes into existing Ref/SignalGen implementation --
+  cd Ref/SignalGen
+  {EXECUTABLE} impl --auto-merge
 
 """,
     "check": f"""Run fprime unit tests with optional test coverage.
