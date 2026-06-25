@@ -19,7 +19,7 @@ namespace {{cookiecutter.deployment_namespace}} {
 Fw::MallocAllocator mallocator;
 
 // Rate group timing: base clock interval and divisors are coupled to rate group names
-extern const Fw::TimeInterval rateGroupInterval(1, 0);  // 1Hz base clock
+const Fw::TimeInterval rateGroupInterval(1, 0);  // 1Hz base clock
 {{"Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{{1, 0}, {2, 0}, {4, 0}}};"}}
 // Divisors: 1Hz, 0.5Hz, 0.25Hz
 
@@ -97,12 +97,9 @@ void setupTopology(const TopologyState& state) {
 {%- endif %}
 }
 
-void startRateGroups(const Fw::TimeInterval& interval) {
-    // The timer component drives the fundamental tick rate of the system.
-    // Svc::RateGroupDriver will divide this down to the slower rate groups.
-    // This call will block until the stopRateGroups() call is made.
-    // For this Linux demo, that call is made from a signal handler.
-    timer.startTimer(interval);
+void startRateGroups() {
+    // Blocks until stopRateGroups() is called (e.g. from signal handler)
+    timer.startTimer(rateGroupInterval);
 }
 
 void stopRateGroups() {
