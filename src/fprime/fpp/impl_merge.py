@@ -301,13 +301,13 @@ def parse_cpp_functions(text: str, class_name: str) -> List[Function]:
         paren_close = _match_delimiter(text, paren_open, "(", ")")
         if paren_close == -1:
             continue
-        brace_open = text.find("{", paren_close)
-        if brace_open == -1:
+        # The first non-comment, non-string token after the signature is '{'
+        # for a definition or ';' for a declaration. Scanning past comments
+        # avoids being fooled by a ';' or '{' inside a trailing comment.
+        nxt = _find_char_skipping_comments(text, paren_close + 1, "{;")
+        if nxt == -1 or text[nxt] == ";":
             continue
-        # Guard against matching declarations (which end in ';' before any '{').
-        semi = text.find(";", paren_close)
-        if semi != -1 and semi < brace_open:
-            continue
+        brace_open = nxt
         brace_close = _match_delimiter(text, brace_open, "{", "}")
         if brace_close == -1:
             continue
@@ -446,6 +446,31 @@ def _strip_comments(text: str) -> str:
     text = re.sub(r"/\*.*?\*/", " ", text, flags=re.DOTALL)
     text = re.sub(r"//[^\n]*", "", text)
     return text
+
+
+def _find_char_skipping_comments(text: str, start: int, targets: str) -> int:
+    """Return the offset of the first character in ``targets`` at or after
+    ``start`` that is not inside a ``//`` / ``/* */`` comment or a string/char
+    literal, or ``-1`` if none is found."""
+    i = start
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            nl = text.find("\n", i)
+            i = n if nl == -1 else nl
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            close = text.find("*/", i + 2)
+            i = n if close == -1 else close + 2
+            continue
+        if c in ('"', "'"):
+            i = _skip_string(text, i)
+            continue
+        if c in targets:
+            return i
+        i += 1
+    return -1
 
 
 def _find_signature_paren(text: str, start: int, end: int) -> Optional[int]:

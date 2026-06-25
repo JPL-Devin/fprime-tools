@@ -206,6 +206,35 @@ def test_parse_hpp_functions_names_match_cpp():
     assert cpp_names == hpp_names
 
 
+def test_parse_cpp_function_with_semicolon_in_trailing_comment():
+    # A user may leave a comment containing ';' or '{' between the signature's
+    # ')' and the body's '{'. The parser must still recognize the definition so
+    # the merge does not treat it as missing and insert a duplicate.
+    cpp = """\
+#include "Svc/Foo/Foo.hpp"
+
+namespace Svc {
+
+// ----------------------------------------------------------------------
+// Handler implementations for typed input ports
+// ----------------------------------------------------------------------
+
+void Foo ::schedIn_handler(FwIndexType portNum, U32 context)  // see docs; note {x}
+{
+    // real implementation
+}
+
+}  // namespace Svc
+"""
+    names = {f.name for f in impl_merge.parse_cpp_functions(cpp, CLASS)}
+    assert "schedIn_handler" in names
+
+    # And the merge must not duplicate it.
+    result = impl_merge.merge_cpp(TEMPLATE_CPP, cpp, CLASS)
+    assert "schedIn_handler" not in result.added
+    assert (result.text or cpp).count("schedIn_handler(") == 1
+
+
 def test_parse_hpp_param_types():
     funcs = {f.name: f for f in impl_merge.parse_hpp_functions(TEMPLATE_HPP, CLASS)}
     assert funcs["schedIn_handler"].param_types == ["FwIndexType", "U32"]
