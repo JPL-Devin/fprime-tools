@@ -5,9 +5,9 @@ module {{cookiecutter.deployment_namespace}} {
   # ----------------------------------------------------------------------
 
   enum Ports_RateGroups {
-    rateGroup1Hz
-    rateGroup0_5Hz
-    rateGroup0_25Hz
+    rateGroup_1Hz
+    rateGroup_0_5Hz
+    rateGroup_0_25Hz
   }
 
   topology {{cookiecutter.deployment_name}} {
@@ -24,9 +24,9 @@ module {{cookiecutter.deployment_namespace}} {
   # Instances used in the topology
   # ----------------------------------------------------------------------
     instance chronoTime
-    instance rateGroup1Hz
-    instance rateGroup0_5Hz
-    instance rateGroup0_25Hz
+    instance rateGroup_1Hz
+    instance rateGroup_0_5Hz
+    instance rateGroup_0_25Hz
     instance rateGroupDriver
     instance systemResources
     instance timer
@@ -101,25 +101,25 @@ module {{cookiecutter.deployment_namespace}} {
       timer.CycleOut -> rateGroupDriver.CycleIn
 
       # 1Hz rate group
-      rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup1Hz] -> rateGroup1Hz.CycleIn
-      rateGroup1Hz.RateGroupMemberOut[0] -> CdhCore.tlmSend.Run
-      rateGroup1Hz.RateGroupMemberOut[1] -> FileHandling.fileDownlink.Run
-      rateGroup1Hz.RateGroupMemberOut[2] -> systemResources.run
-      rateGroup1Hz.RateGroupMemberOut[3] -> ComCcsds.comQueue.run
-      rateGroup1Hz.RateGroupMemberOut[4] -> ComCcsds.aggregator.timeout
-      rateGroup1Hz.RateGroupMemberOut[5] -> CdhCore.cmdDisp.run
+      rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup_1Hz] -> rateGroup_1Hz.CycleIn
+      rateGroup_1Hz.RateGroupMemberOut[0] -> CdhCore.tlmSend.Run
+      rateGroup_1Hz.RateGroupMemberOut[1] -> FileHandling.fileDownlink.Run
+      rateGroup_1Hz.RateGroupMemberOut[2] -> systemResources.run
+      rateGroup_1Hz.RateGroupMemberOut[3] -> ComCcsds.comQueue.run
+      rateGroup_1Hz.RateGroupMemberOut[4] -> ComCcsds.aggregator.timeout
+      rateGroup_1Hz.RateGroupMemberOut[5] -> CdhCore.cmdDisp.run
 
       # 0.5Hz rate group
-      rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup0_5Hz] -> rateGroup0_5Hz.CycleIn
-      rateGroup0_5Hz.RateGroupMemberOut[0] -> cmdSeq.schedIn
+      rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup_0_5Hz] -> rateGroup_0_5Hz.CycleIn
+      rateGroup_0_5Hz.RateGroupMemberOut[0] -> cmdSeq.schedIn
 
       # 0.25Hz rate group
-      rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup0_25Hz] -> rateGroup0_25Hz.CycleIn
-      rateGroup0_25Hz.RateGroupMemberOut[0] -> CdhCore.$health.Run
-      rateGroup0_25Hz.RateGroupMemberOut[1] -> ComCcsds.commsBufferManager.schedIn
-      rateGroup0_25Hz.RateGroupMemberOut[2] -> DataProducts.dpBufferManager.schedIn
-      rateGroup0_25Hz.RateGroupMemberOut[3] -> DataProducts.dpWriter.schedIn
-      rateGroup0_25Hz.RateGroupMemberOut[4] -> DataProducts.dpMgr.schedIn
+      rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup_0_25Hz] -> rateGroup_0_25Hz.CycleIn
+      rateGroup_0_25Hz.RateGroupMemberOut[0] -> CdhCore.$health.Run
+      rateGroup_0_25Hz.RateGroupMemberOut[1] -> ComCcsds.commsBufferManager.schedIn
+      rateGroup_0_25Hz.RateGroupMemberOut[2] -> DataProducts.dpBufferManager.schedIn
+      rateGroup_0_25Hz.RateGroupMemberOut[3] -> DataProducts.dpWriter.schedIn
+      rateGroup_0_25Hz.RateGroupMemberOut[4] -> DataProducts.dpMgr.schedIn
     }
 
     connections CdhCore_cmdSeq {

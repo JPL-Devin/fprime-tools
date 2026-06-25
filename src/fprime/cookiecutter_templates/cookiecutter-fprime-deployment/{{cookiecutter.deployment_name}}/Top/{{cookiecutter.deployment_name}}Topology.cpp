@@ -24,9 +24,9 @@ const Fw::TimeInterval rateGroupInterval(1, 0);  // 1Hz base clock
 // Divisors: 1Hz, 0.5Hz, 0.25Hz
 
 // Context tokens for rate group members (unused, set to zero)
-U32 rateGroup1HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
-U32 rateGroup0_5HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
-U32 rateGroup0_25HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
+U32 rateGroup_1HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
+U32 rateGroup_0_5HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
+U32 rateGroup_0_25HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
 
 enum TopologyConstants {
     COMM_PRIORITY = 34,
@@ -44,9 +44,9 @@ void configureTopology() {
     rateGroupDriver.configure(rateGroupDivisorsSet);
 
     // Rate groups require context arrays.
-    rateGroup1Hz.configure(rateGroup1HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup1HzContext));
-    rateGroup0_5Hz.configure(rateGroup0_5HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup0_5HzContext));
-    rateGroup0_25Hz.configure(rateGroup0_25HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup0_25HzContext));
+    rateGroup_1Hz.configure(rateGroup_1HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup_1HzContext));
+    rateGroup_0_5Hz.configure(rateGroup_0_5HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup_0_5HzContext));
+    rateGroup_0_25Hz.configure(rateGroup_0_25HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup_0_25HzContext));
 
     // Command sequencer needs to allocate memory to hold contents of command sequences
     cmdSeq.allocateBuffer(0, mallocator, 5 * 1024);

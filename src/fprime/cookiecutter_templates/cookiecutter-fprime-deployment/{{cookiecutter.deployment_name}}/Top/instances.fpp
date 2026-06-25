@@ -27,19 +27,19 @@ module {{cookiecutter.deployment_namespace}} {
   # ----------------------------------------------------------------------
 
   # 1Hz rate group (divisor 1 of 1Hz base clock)
-  instance rateGroup1Hz: Svc.ActiveRateGroup base id 0x10001000 \
+  instance rateGroup_1Hz: Svc.ActiveRateGroup base id 0x10001000 \
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
     priority 43
 
   # 0.5Hz rate group (divisor 2 of 1Hz base clock)
-  instance rateGroup0_5Hz: Svc.ActiveRateGroup base id 0x10002000 \
+  instance rateGroup_0_5Hz: Svc.ActiveRateGroup base id 0x10002000 \
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
     priority 42
 
   # 0.25Hz rate group (divisor 4 of 1Hz base clock)
-  instance rateGroup0_25Hz: Svc.ActiveRateGroup base id 0x10003000 \
+  instance rateGroup_0_25Hz: Svc.ActiveRateGroup base id 0x10003000 \
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
     priority 41
