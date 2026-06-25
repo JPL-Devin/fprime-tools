@@ -30,7 +30,7 @@ code emitted by ``fpp-to-cpp`` (and preserved by ``clang-format``):
     <funcName>(<params>) [override] [const];`` under ``public:`` / ``private:``
     access tags, each preceded by a ``//!`` doc comment.
 
-@author Devin
+@author thomas-bc
 """
 
 import re
