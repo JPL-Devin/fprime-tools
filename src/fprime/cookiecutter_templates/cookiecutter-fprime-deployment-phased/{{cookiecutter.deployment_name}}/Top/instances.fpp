@@ -26,7 +26,8 @@ module {{cookiecutter.deployment_namespace}} {
   # Active component instances
   # ----------------------------------------------------------------------
 
-  instance rateGroup1: Svc.ActiveRateGroup base id 0x10001000 \
+  # 1Hz rate group (divisor 1 of 1Hz base clock)
+  instance rateGroup1Hz: Svc.ActiveRateGroup base id 0x10001000 \
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
     priority 43 \
@@ -35,12 +36,13 @@ module {{cookiecutter.deployment_namespace}} {
         U32 context[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
         """
         phase Fpp.ToCpp.Phases.configComponents """
-        rateGroup1.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup1::context,
-            FW_NUM_ARRAY_ELEMENTS(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup1::context));
+        rateGroup1Hz.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup1Hz::context,
+            FW_NUM_ARRAY_ELEMENTS(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup1Hz::context));
         """
     }
   
-  instance rateGroup2: Svc.ActiveRateGroup base id 0x10002000 \
+  # 0.5Hz rate group (divisor 2 of 1Hz base clock)
+  instance rateGroupHalfHz: Svc.ActiveRateGroup base id 0x10002000 \
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
     priority 42 \
@@ -49,12 +51,13 @@ module {{cookiecutter.deployment_namespace}} {
         U32 context[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
         """
         phase Fpp.ToCpp.Phases.configComponents """
-        rateGroup2.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup2::context,
-            FW_NUM_ARRAY_ELEMENTS(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup2::context));
+        rateGroupHalfHz.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroupHalfHz::context,
+            FW_NUM_ARRAY_ELEMENTS(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroupHalfHz::context));
         """
     }
 
-  instance rateGroup3: Svc.ActiveRateGroup base id 0x10003000 \
+  # 0.25Hz rate group (divisor 4 of 1Hz base clock)
+  instance rateGroupQuarterHz: Svc.ActiveRateGroup base id 0x10003000 \
     queue size Default.QUEUE_SIZE \
     stack size Default.STACK_SIZE \
     priority 41 \
@@ -63,8 +66,8 @@ module {{cookiecutter.deployment_namespace}} {
         U32 context[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
         """
         phase Fpp.ToCpp.Phases.configComponents """
-        rateGroup3.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup3::context,
-            FW_NUM_ARRAY_ELEMENTS(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup3::context));
+        rateGroupQuarterHz.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroupQuarterHz::context,
+            FW_NUM_ARRAY_ELEMENTS(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroupQuarterHz::context));
         """
     }
 
@@ -98,6 +101,7 @@ module {{cookiecutter.deployment_namespace}} {
   instance rateGroupDriver: Svc.RateGroupDriver base id 0x10011000 \
   {
       phase Fpp.ToCpp.Phases.configObjects """
+      // Divisors: 1Hz, 0.5Hz, 0.25Hz (1Hz base clock, zero offset)
       Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{ '{{' }}{1, 0}, {2, 0}, {4, 0}}};
       """
       phase Fpp.ToCpp.Phases.configComponents """
