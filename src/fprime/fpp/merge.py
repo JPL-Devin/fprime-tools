@@ -138,16 +138,22 @@ def _find_banner_starts(lines: List[str], limit: int) -> List[int]:
     return starts
 
 
-def parse_impl(text: str) -> ParsedImpl:
-    """Parse an impl file into preamble, banner-delimited sections and trailer."""
+def parse_impl(text: str, detect_trailer: bool = True) -> ParsedImpl:
+    """Parse an impl file into preamble, banner-delimited sections and trailer.
+
+    ``detect_trailer`` should be True for HPP files (whose class-closing ``};`` and
+    ``#endif`` form a trailer) and False for CPP files, where a bare ``};`` would
+    otherwise be a hand-written struct/enum rather than a class close.
+    """
     lines = text.split("\n")
 
     # The class-closing brace (HPP only) and everything after it is the trailer.
     trailer_start = len(lines)
-    for index in range(len(lines) - 1, -1, -1):
-        if CLASS_CLOSE_RE.match(lines[index]):
-            trailer_start = index
-            break
+    if detect_trailer:
+        for index in range(len(lines) - 1, -1, -1):
+            if CLASS_CLOSE_RE.match(lines[index]):
+                trailer_start = index
+                break
 
     banner_starts = _find_banner_starts(lines, trailer_start)
     if not banner_starts:
@@ -234,7 +240,9 @@ def render_impl(parsed: ParsedImpl) -> str:
 
 def annotate_file(path: Path, with_hash: bool) -> None:
     """Inject (or refresh) section end markers in a generated template file."""
-    parsed = parse_impl(path.read_text(encoding="utf-8"))
+    parsed = parse_impl(
+        path.read_text(encoding="utf-8"), detect_trailer=path.suffix == ".hpp"
+    )
     if not parsed.sections:
         return
     for section in parsed.sections:
@@ -288,9 +296,9 @@ def split_functions(body_lines: List[str]) -> List[FunctionBlock]:
                 state = "string"
             elif char == "'":
                 state = "char"
-            elif not char.isspace() and seg_start is None:
-                seg_start = index
             elif char == "{":
+                if seg_start is None:
+                    seg_start = index
                 depth += 1
             elif char == "}":
                 depth -= 1
@@ -303,6 +311,8 @@ def split_functions(body_lines: List[str]) -> List[FunctionBlock]:
                         )
                     )
                     seg_start = None
+            elif not char.isspace() and seg_start is None:
+                seg_start = index
         index += 1
     return blocks
 
@@ -445,8 +455,8 @@ def perform_auto_merge(
 
 def merge_cpp(existing_text: str, template_text: str) -> Tuple[str, List[str]]:
     """Merge a CPP template into the existing CPP additively, returning (text, warnings)."""
-    existing = parse_impl(existing_text)
-    template = parse_impl(template_text)
+    existing = parse_impl(existing_text, detect_trailer=False)
+    template = parse_impl(template_text, detect_trailer=False)
     warnings: List[str] = []
 
     existing_by_title = {section.title: section for section in existing.sections}

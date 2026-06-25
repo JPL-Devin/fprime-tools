@@ -197,6 +197,9 @@ def run_fpp_impl(
         ___: unused pass-through arguments
     """
 
+    if parsed.ut and parsed.auto_merge:
+        print("[WARNING] --auto-merge has no effect with --ut; ignoring --auto-merge.")
+
     return fpp_generate_implementation(
         build,
         Path(parsed.output_dir),

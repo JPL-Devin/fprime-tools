@@ -188,6 +188,44 @@ def test_split_functions_ignores_braces_in_strings_and_comments():
     assert blocks[0].name == "noisy"
 
 
+def test_split_functions_tracks_depth_after_leading_brace_block():
+    # A bare "{...}" block whose first non-whitespace char is "{" must still
+    # increment brace depth; otherwise following functions are silently dropped.
+    snippet = [
+        "{",
+        "  scoped();",
+        "}",
+        "",
+        "void Comp ::",
+        "  after()",
+        "{",
+        "  // TODO",
+        "}",
+    ]
+    # The leading anonymous block has no signature, so we abort rather than
+    # corrupt depth tracking and lose "after".
+    with pytest.raises(merge.ImplMergeError):
+        merge.split_functions(snippet)
+
+
+def test_split_functions_finds_all_after_nested_blocks():
+    snippet = [
+        "void Comp ::",
+        "  first()",
+        "{",
+        "  if (x) { a(); } else { b(); }",
+        "}",
+        "",
+        "void Comp ::",
+        "  second()",
+        "{",
+        "  while (y) { c(); }",
+        "}",
+    ]
+    names = [block.name for block in merge.split_functions(snippet)]
+    assert names == ["first", "second"]
+
+
 def test_duplicate_function_names_abort():
     blocks = [merge.FunctionBlock("foo", []), merge.FunctionBlock("foo", [])]
     with pytest.raises(merge.ImplMergeError):
@@ -260,6 +298,26 @@ def test_merge_cpp_noop_when_nothing_new():
     template = _annotated(CPP_TEMPLATE, with_hash=False)
     merged, warnings = merge.merge_cpp(template, template)
     assert warnings == []
+
+
+def test_cpp_parse_not_truncated_by_struct_close_brace():
+    # A hand struct ending in "};" inside an early section must not be mistaken
+    # for a class-closing brace and truncate later sections.
+    template = _annotated(CPP_TEMPLATE, with_hash=False)
+    existing_src = _annotated(CPP_TEMPLATE, with_hash=False).replace(
+        "  Comp(const char* const compName)\n{\n\n}",
+        "  Comp(const char* const compName)\n{\n  struct Local { int x; };\n}",
+    )
+    existing = existing_src
+    # portTwo removed from existing so the merge must append it to the *second*
+    # section, which only survives if parsing was not truncated at "};".
+    existing = existing.replace(
+        "void Comp ::\n  portTwo_handler(FwIndexType portNum)\n{\n  // TODO\n}\n",
+        "",
+    )
+    merged, warnings = merge.merge_cpp(existing, template)
+    assert "portTwo_handler" in merged
+    assert any("portTwo_handler" in warning for warning in warnings)
 
 
 # --------------------------------------------------------------------------
