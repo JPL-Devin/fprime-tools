@@ -46,8 +46,8 @@
  */
 namespace PingEntries {
     namespace {{cookiecutter.deployment_namespace}}_rateGroup1Hz {enum { WARN = 3, FATAL = 5 };}
-    namespace {{cookiecutter.deployment_namespace}}_rateGroupHalfHz {enum { WARN = 3, FATAL = 5 };}
-    namespace {{cookiecutter.deployment_namespace}}_rateGroupQuarterHz {enum { WARN = 3, FATAL = 5 };}
+    namespace {{cookiecutter.deployment_namespace}}_rateGroup0_5Hz {enum { WARN = 3, FATAL = 5 };}
+    namespace {{cookiecutter.deployment_namespace}}_rateGroup0_25Hz {enum { WARN = 3, FATAL = 5 };}
     namespace {{cookiecutter.deployment_namespace}}_cmdSeq {enum { WARN = 3, FATAL = 5 };}
 }  // namespace PingEntries
 

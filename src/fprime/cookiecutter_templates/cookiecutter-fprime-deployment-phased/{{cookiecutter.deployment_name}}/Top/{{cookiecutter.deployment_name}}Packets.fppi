@@ -22,8 +22,8 @@ telemetry packets {{cookiecutter.deployment_name}}Packets {
     ComCcsds.commsBufferManager.HiBuffs
 
     {{cookiecutter.deployment_namespace}}.rateGroup1Hz.RgMaxTime
-    {{cookiecutter.deployment_namespace}}.rateGroupHalfHz.RgMaxTime
-    {{cookiecutter.deployment_namespace}}.rateGroupQuarterHz.RgMaxTime
+    {{cookiecutter.deployment_namespace}}.rateGroup0_5Hz.RgMaxTime
+    {{cookiecutter.deployment_namespace}}.rateGroup0_25Hz.RgMaxTime
   }
 
   packet CDHErrors id 2 group 1 {
@@ -38,8 +38,8 @@ telemetry packets {{cookiecutter.deployment_name}}Packets {
     ComCcsds.commsBufferManager.EmptyBuffs
 
     {{cookiecutter.deployment_namespace}}.rateGroup1Hz.RgCycleSlips
-    {{cookiecutter.deployment_namespace}}.rateGroupHalfHz.RgCycleSlips
-    {{cookiecutter.deployment_namespace}}.rateGroupQuarterHz.RgCycleSlips
+    {{cookiecutter.deployment_namespace}}.rateGroup0_5Hz.RgCycleSlips
+    {{cookiecutter.deployment_namespace}}.rateGroup0_25Hz.RgCycleSlips
   }
 
   packet SystemRes1 id 5 group 2 {

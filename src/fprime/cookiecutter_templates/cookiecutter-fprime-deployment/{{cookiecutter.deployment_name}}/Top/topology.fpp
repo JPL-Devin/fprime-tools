@@ -6,8 +6,8 @@ module {{cookiecutter.deployment_namespace}} {
 
   enum Ports_RateGroups {
     rateGroup1Hz
-    rateGroupHalfHz
-    rateGroupQuarterHz
+    rateGroup0_5Hz
+    rateGroup0_25Hz
   }
 
   topology {{cookiecutter.deployment_name}} {
@@ -25,8 +25,8 @@ module {{cookiecutter.deployment_namespace}} {
   # ----------------------------------------------------------------------
     instance chronoTime
     instance rateGroup1Hz
-    instance rateGroupHalfHz
-    instance rateGroupQuarterHz
+    instance rateGroup0_5Hz
+    instance rateGroup0_25Hz
     instance rateGroupDriver
     instance systemResources
     instance timer
@@ -110,16 +110,16 @@ module {{cookiecutter.deployment_namespace}} {
       rateGroup1Hz.RateGroupMemberOut[5] -> CdhCore.cmdDisp.run
 
       # 0.5Hz rate group
-      rateGroupDriver.CycleOut[Ports_RateGroups.rateGroupHalfHz] -> rateGroupHalfHz.CycleIn
-      rateGroupHalfHz.RateGroupMemberOut[0] -> cmdSeq.schedIn
+      rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup0_5Hz] -> rateGroup0_5Hz.CycleIn
+      rateGroup0_5Hz.RateGroupMemberOut[0] -> cmdSeq.schedIn
 
       # 0.25Hz rate group
-      rateGroupDriver.CycleOut[Ports_RateGroups.rateGroupQuarterHz] -> rateGroupQuarterHz.CycleIn
-      rateGroupQuarterHz.RateGroupMemberOut[0] -> CdhCore.$health.Run
-      rateGroupQuarterHz.RateGroupMemberOut[1] -> ComCcsds.commsBufferManager.schedIn
-      rateGroupQuarterHz.RateGroupMemberOut[2] -> DataProducts.dpBufferManager.schedIn
-      rateGroupQuarterHz.RateGroupMemberOut[3] -> DataProducts.dpWriter.schedIn
-      rateGroupQuarterHz.RateGroupMemberOut[4] -> DataProducts.dpMgr.schedIn
+      rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup0_25Hz] -> rateGroup0_25Hz.CycleIn
+      rateGroup0_25Hz.RateGroupMemberOut[0] -> CdhCore.$health.Run
+      rateGroup0_25Hz.RateGroupMemberOut[1] -> ComCcsds.commsBufferManager.schedIn
+      rateGroup0_25Hz.RateGroupMemberOut[2] -> DataProducts.dpBufferManager.schedIn
+      rateGroup0_25Hz.RateGroupMemberOut[3] -> DataProducts.dpWriter.schedIn
+      rateGroup0_25Hz.RateGroupMemberOut[4] -> DataProducts.dpMgr.schedIn
     }
 
     connections CdhCore_cmdSeq {
