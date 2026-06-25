@@ -60,18 +60,11 @@ void setupTopology(const TopologyState& state);
 void teardownTopology(const TopologyState& state);
 
 /**
- * \brief cycle the rate group driver at a crude rate
+ * \brief cycle the rate group driver using the base clock interval defined next to the divisors
  *
- * The reference topology does not have a true 1Hz input clock for the rate group driver because it is designed to
- * operate across various computing endpoints (e.g. laptops) where a clear 1Hz source may not be easily and generically
- * achieved. This function mimics the cycling via a Task::delay(milliseconds) loop that manually invokes the ISR call
- * to the example block driver.
- *
- *
- * This loop is stopped via a stopRateGroups call.
- *
+ * Blocks until stopRateGroups() is called.
  */
-void startRateGroups(const Fw::TimeInterval& interval = Fw::TimeInterval(1,0));
+void startRateGroups();
 
 /**
  * \brief stop the rate groups 

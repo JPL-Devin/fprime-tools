@@ -18,14 +18,15 @@ namespace {{cookiecutter.deployment_namespace}} {
 // Instantiate a malloc allocator for cmdSeq buffer allocation
 Fw::MallocAllocator mallocator;
 
-// The reference topology divides the incoming clock signal (1Hz) into sub-signals: 1Hz, 1/2Hz, and 1/4Hz with 0 offset
+// Rate group timing: base clock interval and divisors are coupled to rate group names
+const Fw::TimeInterval rateGroupInterval(1, 0);  // 1Hz base clock
 {{"Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{{1, 0}, {2, 0}, {4, 0}}};"}}
+// Divisors: 1Hz, 0.5Hz, 0.25Hz
 
-// Rate groups may supply a context token to each of the attached children whose purpose is set by the project. The
-// reference topology sets each token to zero as these contexts are unused in this project.
-U32 rateGroup1Context[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
-U32 rateGroup2Context[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
-U32 rateGroup3Context[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
+// Context tokens for rate group members (unused, set to zero)
+U32 rateGroup_1HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
+U32 rateGroup_0_5HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
+U32 rateGroup_0_25HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
 
 enum TopologyConstants {
     COMM_PRIORITY = 34,
@@ -43,9 +44,9 @@ void configureTopology() {
     rateGroupDriver.configure(rateGroupDivisorsSet);
 
     // Rate groups require context arrays.
-    rateGroup1.configure(rateGroup1Context, FW_NUM_ARRAY_ELEMENTS(rateGroup1Context));
-    rateGroup2.configure(rateGroup2Context, FW_NUM_ARRAY_ELEMENTS(rateGroup2Context));
-    rateGroup3.configure(rateGroup3Context, FW_NUM_ARRAY_ELEMENTS(rateGroup3Context));
+    rateGroup_1Hz.configure(rateGroup_1HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup_1HzContext));
+    rateGroup_0_5Hz.configure(rateGroup_0_5HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup_0_5HzContext));
+    rateGroup_0_25Hz.configure(rateGroup_0_25HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup_0_25HzContext));
 
     // Command sequencer needs to allocate memory to hold contents of command sequences
     cmdSeq.allocateBuffer(0, mallocator, 5 * 1024);
@@ -96,12 +97,9 @@ void setupTopology(const TopologyState& state) {
 {%- endif %}
 }
 
-void startRateGroups(const Fw::TimeInterval& interval) {
-    // The timer component drives the fundamental tick rate of the system.
-    // Svc::RateGroupDriver will divide this down to the slower rate groups.
-    // This call will block until the stopRateGroups() call is made.
-    // For this Linux demo, that call is made from a signal handler.
-    timer.startTimer(interval);
+void startRateGroups() {
+    // Blocks until stopRateGroups() is called (e.g. from signal handler)
+    timer.startTimer(rateGroupInterval);
 }
 
 void stopRateGroups() {

@@ -45,9 +45,9 @@
  * ```
  */
 namespace PingEntries {
-    namespace {{cookiecutter.deployment_namespace}}_rateGroup1 {enum { WARN = 3, FATAL = 5 };}
-    namespace {{cookiecutter.deployment_namespace}}_rateGroup2 {enum { WARN = 3, FATAL = 5 };}
-    namespace {{cookiecutter.deployment_namespace}}_rateGroup3 {enum { WARN = 3, FATAL = 5 };}
+    namespace {{cookiecutter.deployment_namespace}}_rateGroup_1Hz {enum { WARN = 3, FATAL = 5 };}
+    namespace {{cookiecutter.deployment_namespace}}_rateGroup_0_5Hz {enum { WARN = 3, FATAL = 5 };}
+    namespace {{cookiecutter.deployment_namespace}}_rateGroup_0_25Hz {enum { WARN = 3, FATAL = 5 };}
     namespace {{cookiecutter.deployment_namespace}}_cmdSeq {enum { WARN = 3, FATAL = 5 };}
 }  // namespace PingEntries
 
