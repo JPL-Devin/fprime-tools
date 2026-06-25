@@ -118,7 +118,7 @@ int main(int argc, char* argv[]) {
 
     // Setup, cycle, and teardown topology
     {{cookiecutter.deployment_namespace}}::setupTopology(inputs);
-    {{cookiecutter.deployment_namespace}}::startRateGroups(Fw::TimeInterval(1,0));  // Program loop cycling rate groups at 1Hz
+    {{cookiecutter.deployment_namespace}}::startRateGroups();
     {{cookiecutter.deployment_namespace}}::teardownTopology(inputs);
     Fw::Logger::log("Exiting...\n");
     return 0;

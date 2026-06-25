@@ -101,8 +101,10 @@ module {{cookiecutter.deployment_namespace}} {
   instance rateGroupDriver: Svc.RateGroupDriver base id 0x10011000 \
   {
       phase Fpp.ToCpp.Phases.configObjects """
-      // Divisors: 1Hz, 0.5Hz, 0.25Hz (1Hz base clock, zero offset)
+      // Rate group timing: base clock interval and divisors are coupled to rate group names
+      const Fw::TimeInterval rateGroupInterval(1, 0);  // 1Hz base clock
       Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{ '{{' }}{1, 0}, {2, 0}, {4, 0}}};
+      // Divisors: 1Hz, 0.5Hz, 0.25Hz
       """
       phase Fpp.ToCpp.Phases.configComponents """
       rateGroupDriver.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroupDriver::rateGroupDivisorsSet);

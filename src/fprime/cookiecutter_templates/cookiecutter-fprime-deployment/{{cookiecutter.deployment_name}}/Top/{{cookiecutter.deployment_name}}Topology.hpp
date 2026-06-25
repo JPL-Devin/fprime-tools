@@ -71,7 +71,10 @@ void teardownTopology(const TopologyState& state);
  * This loop is stopped via a stopRateGroups call.
  *
  */
-void startRateGroups(const Fw::TimeInterval& interval = Fw::TimeInterval(1,0));
+// Defined in Topology.cpp next to the rate group divisors
+extern const Fw::TimeInterval rateGroupInterval;
+
+void startRateGroups(const Fw::TimeInterval& interval = rateGroupInterval);
 
 /**
  * \brief stop the rate groups 

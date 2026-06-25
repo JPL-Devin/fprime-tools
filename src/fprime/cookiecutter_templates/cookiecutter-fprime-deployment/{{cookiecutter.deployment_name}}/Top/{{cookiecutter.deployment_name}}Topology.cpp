@@ -18,8 +18,10 @@ namespace {{cookiecutter.deployment_namespace}} {
 // Instantiate a malloc allocator for cmdSeq buffer allocation
 Fw::MallocAllocator mallocator;
 
-// Divisors: 1Hz, 0.5Hz, 0.25Hz (1Hz base clock, zero offset)
+// Rate group timing: base clock interval and divisors are coupled to rate group names
+const Fw::TimeInterval rateGroupInterval(1, 0);  // 1Hz base clock
 {{"Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{{1, 0}, {2, 0}, {4, 0}}};"}}
+// Divisors: 1Hz, 0.5Hz, 0.25Hz
 
 // Context tokens for rate group members (unused, set to zero)
 U32 rateGroup1HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
