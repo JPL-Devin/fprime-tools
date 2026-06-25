@@ -16,8 +16,13 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Tuple
 from fprime.fbuild.builder import Build
 
 from fprime.fpp.common import FppUtility
+from fprime.fpp import impl_merge
 from fprime.util.code_formatter import ClangFormatter
 from fprime.constants import UT_FILES_TARGET_PATH, UT_TEMPLATE_FILE_SUFFIX
+
+# Suffixes used by fpp-to-cpp for generated implementation templates
+_TEMPLATE_HPP_SUFFIX = ".template.hpp"
+_TEMPLATE_CPP_SUFFIX = ".template.cpp"
 
 
 def _apply_clang_formatting(
@@ -81,6 +86,7 @@ def fpp_generate_implementation(
     generate_ut: bool,
     generate_test_helpers: bool = False,
     overwrite: bool = False,
+    auto_merge: bool = False,
 ) -> int:
     """
     Generate implementation files from FPP templates.
@@ -93,6 +99,8 @@ def fpp_generate_implementation(
         generate_ut: Generates UT files if set to True
         generate_test_helpers: Generate of test helper code if set to True
         overwrite: Overwrite existing implementation files if set to True
+        auto_merge: Merge newly generated members into existing implementation
+            files instead of writing standalone *.template.* files
     """
 
     prefixes = [
@@ -104,6 +112,14 @@ def fpp_generate_implementation(
     gen_files = tempfile.NamedTemporaryFile(prefix="fprime-impl-")
 
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # When auto-merging, generate the templates into a scratch directory so they
+    # do not clobber the user's existing implementation files. The new members
+    # are then spliced into those files.
+    merge_tmp = (
+        tempfile.TemporaryDirectory(prefix="fprime-impl-merge-") if auto_merge else None
+    )
+    gen_dir = Path(merge_tmp.name) if merge_tmp is not None else output_dir
 
     # Run fpp-to-cpp --template
     FppUtility("fpp-to-cpp", imports_as_sources=False).execute(
@@ -118,7 +134,7 @@ def fpp_generate_implementation(
                 "--names",
                 gen_files.name,
                 "--directory",
-                str(output_dir),
+                str(gen_dir),
                 "--path-prefixes",
                 ",".join(map(str, prefixes)),
             ],
@@ -130,6 +146,19 @@ def fpp_generate_implementation(
     generated_file_names = [
         Path(line.decode("utf-8").strip()) for line in gen_files.readlines()
     ]
+
+    if auto_merge:
+        try:
+            return _auto_merge_templates(
+                build,
+                framework_path,
+                gen_dir,
+                output_dir,
+                generated_file_names,
+                apply_formatting,
+            )
+        finally:
+            merge_tmp.cleanup()
 
     if apply_formatting:
         _apply_clang_formatting(build, framework_path, output_dir, generated_file_names)
@@ -144,6 +173,104 @@ def fpp_generate_implementation(
             os.rename(filename, new_filename)
 
     return 0
+
+
+def _auto_merge_templates(
+    build: Build,
+    framework_path: Path,
+    gen_dir: Path,
+    output_dir: Path,
+    generated_file_names: List[Path],
+    apply_formatting: bool,
+) -> int:
+    """
+    Merge newly generated implementation templates into the user's existing
+    implementation files.
+
+    For each ``<Name>.template.hpp`` / ``<Name>.template.cpp`` pair generated in
+    ``gen_dir``, splice any new member functions into ``<Name>.hpp`` /
+    ``<Name>.cpp`` in ``output_dir``. If the user file does not yet exist, the
+    generated template is written out as-is (first-time generation).
+
+    Args:
+        build: Build object (for clang-format)
+        framework_path: F´ framework path (for the .clang-format file)
+        gen_dir: Directory holding the freshly generated *.template.* files
+        output_dir: Directory holding the user's implementation files
+        generated_file_names: Names of the generated files
+        apply_formatting: Whether to clang-format the merged files
+
+    Returns:
+        0 on success, 1 if any file could not be merged
+    """
+    # Collect component stems that have a generated template in gen_dir.
+    stems = sorted(
+        {
+            name.name[: -len(_TEMPLATE_HPP_SUFFIX)]
+            for name in generated_file_names
+            if name.name.endswith(_TEMPLATE_HPP_SUFFIX)
+        }
+    )
+
+    if not stems:
+        print("[WARNING] No implementation templates were generated to merge.")
+        return 0
+
+    formatted_files: List[Path] = []
+    had_error = False
+
+    for stem in stems:
+        for suffix, merge_fn in (
+            (".hpp", impl_merge.merge_hpp),
+            (".cpp", impl_merge.merge_cpp),
+        ):
+            template_path = gen_dir / f"{stem}.template{suffix}"
+            user_path = output_dir / f"{stem}{suffix}"
+            if not template_path.is_file():
+                continue
+
+            template_text = template_path.read_text(encoding="utf-8")
+
+            # First-time generation: no user file yet, just write the template.
+            if (
+                not user_path.is_file()
+                or not user_path.read_text(encoding="utf-8").strip()
+            ):
+                user_path.write_text(template_text, encoding="utf-8")
+                formatted_files.append(Path(user_path.name))
+                print(f"[INFO] Created {user_path}")
+                continue
+
+            user_text = user_path.read_text(encoding="utf-8")
+            try:
+                result = merge_fn(template_text, user_text, stem)
+            except Exception as exc:  # pragma: no cover - defensive
+                print(f"[ERROR] Failed to merge {user_path}: {exc}")
+                had_error = True
+                continue
+
+            for name in result.drifted:
+                print(
+                    f"[WARNING] Signature of '{name}' in {user_path} differs from "
+                    "the model. The implementation was left unchanged; please "
+                    "update it by hand."
+                )
+
+            if result.text is None:
+                print(f"[INFO] {user_path} is up to date, nothing to merge.")
+                continue
+
+            user_path.write_text(result.text, encoding="utf-8")
+            formatted_files.append(Path(user_path.name))
+            added = ", ".join(result.added) if result.added else "no new members"
+            print(f"[INFO] Merged into {user_path}: {added}")
+            for include in result.added_includes:
+                print(f"[INFO]   added include: {include}")
+
+    if apply_formatting and formatted_files:
+        _apply_clang_formatting(build, framework_path, output_dir, formatted_files)
+
+    return 1 if had_error else 0
 
 
 def run_fpp_impl(
@@ -163,6 +290,18 @@ def run_fpp_impl(
         ___: unused pass-through arguments
     """
 
+    if parsed.overwrite and parsed.auto_merge:
+        print("[ERROR] --overwrite and --auto-merge cannot be used together.")
+        return 1
+
+    if parsed.auto_merge and parsed.ut:
+        print(
+            "[ERROR] --auto-merge is not supported with --ut. The unit-test "
+            "templates (Tester/TestMain) are not component implementation files "
+            "and are not merged."
+        )
+        return 1
+
     return fpp_generate_implementation(
         build,
         Path(parsed.output_dir),
@@ -171,6 +310,7 @@ def run_fpp_impl(
         parsed.ut,
         parsed.generate_test_helpers,
         parsed.overwrite,
+        parsed.auto_merge,
     )
 
 
@@ -219,6 +359,16 @@ def add_fpp_impl_parsers(
         action="store_true",
         default=False,
         help="Overwrite contents of current CPP and HPP files. Use with caution.",
+        required=False,
+    )
+    impl_parser.add_argument(
+        "--auto-merge",
+        action="store_true",
+        default=False,
+        help="Merge newly generated members (handlers, command handlers, etc.) "
+        "into the existing CPP and HPP files instead of writing standalone "
+        "*.template.* files. Existing implementations are left untouched. "
+        "Cannot be combined with --overwrite.",
         required=False,
     )
     return {"impl": run_fpp_impl}, {"impl": impl_parser}
