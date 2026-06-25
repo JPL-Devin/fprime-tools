@@ -102,7 +102,7 @@ module {{cookiecutter.deployment_namespace}} {
   {
       phase Fpp.ToCpp.Phases.configObjects """
       // Rate group timing: base clock interval and divisors are coupled to rate group names
-      const Fw::TimeInterval rateGroupInterval(1, 0);  // 1Hz base clock
+      Fw::TimeInterval rateGroupInterval(1, 0);  // 1Hz base clock
       Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{ '{{' }}{1, 0}, {2, 0}, {4, 0}}};
       // Divisors: 1Hz, 0.5Hz, 0.25Hz
       """
