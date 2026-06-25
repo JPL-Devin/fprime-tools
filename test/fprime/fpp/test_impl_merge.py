@@ -314,3 +314,46 @@ def test_merge_does_not_duplicate_existing_includes():
     result = impl_merge.merge_hpp(TEMPLATE_HPP, USER_HPP, CLASS)
     assert result.text.count('#include "Svc/Foo/FooComponentAc.hpp"') == 1
     assert result.added_includes == []
+
+
+# ---------------------------------------------------------------------------
+# Merge: multiple brand-new sections keep template order
+# ---------------------------------------------------------------------------
+
+
+def test_merge_multiple_new_sections_preserve_template_order():
+    # User has only the ctor/dtor section; the template adds two brand-new
+    # sections that both get appended near the namespace close brace.
+    user_cpp = """\
+// ======================================================================
+// \\title  Foo.cpp
+// ======================================================================
+
+#include "Svc/Foo/Foo.hpp"
+
+namespace Svc {
+
+// ----------------------------------------------------------------------
+// Component construction and destruction
+// ----------------------------------------------------------------------
+
+Foo ::Foo(const char* const compName) : FooComponentBase(compName) {}
+
+Foo ::~Foo() {}
+
+}  // namespace Svc
+"""
+    result = impl_merge.merge_cpp(TEMPLATE_CPP, user_cpp, CLASS)
+    assert set(result.added) == {
+        "schedIn_handler",
+        "dataIn_handler",
+        "DO_THING_cmdHandler",
+    }
+    ports_idx = result.text.index("Handler implementations for typed input ports")
+    cmds_idx = result.text.index("Handler implementations for commands")
+    # The typed-ports section comes before the commands section, matching the
+    # order in the template (not reversed).
+    assert ports_idx < cmds_idx
+    # Both new sections are created exactly once.
+    assert result.text.count("Handler implementations for typed input ports") == 1
+    assert result.text.count("Handler implementations for commands") == 1

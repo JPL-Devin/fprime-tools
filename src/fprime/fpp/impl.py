@@ -294,6 +294,14 @@ def run_fpp_impl(
         print("[ERROR] --overwrite and --auto-merge cannot be used together.")
         return 1
 
+    if parsed.auto_merge and parsed.ut:
+        print(
+            "[ERROR] --auto-merge is not supported with --ut. The unit-test "
+            "templates (Tester/TestMain) are not component implementation files "
+            "and are not merged."
+        )
+        return 1
+
     return fpp_generate_implementation(
         build,
         Path(parsed.output_dir),

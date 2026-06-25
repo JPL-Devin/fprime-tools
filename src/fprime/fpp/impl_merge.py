@@ -506,6 +506,9 @@ def _access_by_section(template_hpp: str) -> Dict[str, str]:
 class _Insertion:
     offset: int
     text: str
+    order: int = 0
+    """Creation rank, used to break ties when several insertions target the same
+    offset so the applied order is deterministic and matches template order."""
 
 
 def _collapse_blank_lines(text: str) -> str:
@@ -589,8 +592,15 @@ def _merge(
     if not insertions:
         return MergeResult(None, added, drifted, added_includes)
 
-    # Apply insertions from last to first so offsets remain valid.
-    insertions.sort(key=lambda ins: ins.offset, reverse=True)
+    # Apply insertions from last to first so offsets remain valid. When several
+    # insertions target the same offset (e.g. multiple brand-new sections at the
+    # namespace close brace), break the tie by creation rank so that earlier
+    # (template-order) sections end up first in the output. Each insertion at a
+    # shared offset is prepended to the previous one, so applying them in
+    # descending rank yields ascending template order in the final text.
+    for rank, ins in enumerate(insertions):
+        ins.order = rank
+    insertions.sort(key=lambda ins: (ins.offset, ins.order), reverse=True)
     result = user_text
     for ins in insertions:
         result = result[: ins.offset] + ins.text + result[ins.offset :]
