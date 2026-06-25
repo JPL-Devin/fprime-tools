@@ -39,6 +39,9 @@ END_RE = re.compile(
 ACCESS_RE = re.compile(r"^\s*(public|private|protected)\s*:\s*$")
 # Closing brace of the component class in an HPP file.
 CLASS_CLOSE_RE = re.compile(r"^\s*};\s*$")
+# A namespace-closing brace: a lone "}" (optionally with a trailing comment), no
+# semicolon (which would make it a struct/enum close instead).
+NAMESPACE_CLOSE_RE = re.compile(r"^\s*\}\s*(?://.*)?$")
 
 HASH_LENGTH = 16
 
@@ -138,20 +141,23 @@ def _find_banner_starts(lines: List[str], limit: int) -> List[int]:
     return starts
 
 
-def parse_impl(text: str, detect_trailer: bool = True) -> ParsedImpl:
+def parse_impl(
+    text: str, trailer_re: Optional["re.Pattern[str]"] = CLASS_CLOSE_RE
+) -> ParsedImpl:
     """Parse an impl file into preamble, banner-delimited sections and trailer.
 
-    ``detect_trailer`` should be True for HPP files (whose class-closing ``};`` and
-    ``#endif`` form a trailer) and False for CPP files, where a bare ``};`` would
-    otherwise be a hand-written struct/enum rather than a class close.
+    ``trailer_re`` matches the first trailer line: the class-closing ``};`` for
+    HPP files (``CLASS_CLOSE_RE``) or the namespace-closing ``}`` for CPP files
+    (``NAMESPACE_CLOSE_RE``). ``None`` disables trailer detection. Keeping the
+    namespace close in the trailer ensures appended CPP stubs land inside it.
     """
     lines = text.split("\n")
 
-    # The class-closing brace (HPP only) and everything after it is the trailer.
+    # The closing brace and everything after it is the trailer.
     trailer_start = len(lines)
-    if detect_trailer:
+    if trailer_re is not None:
         for index in range(len(lines) - 1, -1, -1):
-            if CLASS_CLOSE_RE.match(lines[index]):
+            if trailer_re.match(lines[index]):
                 trailer_start = index
                 break
 
@@ -241,7 +247,8 @@ def render_impl(parsed: ParsedImpl) -> str:
 def annotate_file(path: Path, with_hash: bool) -> None:
     """Inject (or refresh) section end markers in a generated template file."""
     parsed = parse_impl(
-        path.read_text(encoding="utf-8"), detect_trailer=path.suffix == ".hpp"
+        path.read_text(encoding="utf-8"),
+        trailer_re=CLASS_CLOSE_RE if path.suffix == ".hpp" else NAMESPACE_CLOSE_RE,
     )
     if not parsed.sections:
         return
@@ -455,8 +462,8 @@ def perform_auto_merge(
 
 def merge_cpp(existing_text: str, template_text: str) -> Tuple[str, List[str]]:
     """Merge a CPP template into the existing CPP additively, returning (text, warnings)."""
-    existing = parse_impl(existing_text, detect_trailer=False)
-    template = parse_impl(template_text, detect_trailer=False)
+    existing = parse_impl(existing_text, trailer_re=NAMESPACE_CLOSE_RE)
+    template = parse_impl(template_text, trailer_re=NAMESPACE_CLOSE_RE)
     warnings: List[str] = []
 
     existing_by_title = {section.title: section for section in existing.sections}

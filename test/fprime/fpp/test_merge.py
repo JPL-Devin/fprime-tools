@@ -83,6 +83,8 @@ CPP_TEMPLATE = (
 
         #include "Comp.hpp"
 
+        namespace M {
+
         __CTOR_BANNER__
 
         Comp ::
@@ -110,6 +112,8 @@ CPP_TEMPLATE = (
         {
           // TODO
         }
+
+        }  // namespace M
         """
     )
     .replace("__CTOR_BANNER__", _banner(CTOR_TITLE))
@@ -118,8 +122,13 @@ CPP_TEMPLATE = (
 
 
 def _annotated(text, with_hash):
-    """Return the annotated form of an impl file (as impl generation would emit)."""
-    parsed = merge.parse_impl(text)
+    """Return the annotated form of an impl file (as impl generation would emit).
+
+    HPP files (hashed) use the class-close trailer; CPP files use the
+    namespace-close trailer, matching production annotation.
+    """
+    trailer_re = merge.CLASS_CLOSE_RE if with_hash else merge.NAMESPACE_CLOSE_RE
+    parsed = merge.parse_impl(text, trailer_re=trailer_re)
     for section in parsed.sections:
         section.stored_hash = (
             merge.section_hash(section.body_lines) if with_hash else None
@@ -298,6 +307,23 @@ def test_merge_cpp_noop_when_nothing_new():
     template = _annotated(CPP_TEMPLATE, with_hash=False)
     merged, warnings = merge.merge_cpp(template, template)
     assert warnings == []
+
+
+def test_merge_cpp_appends_inside_namespace():
+    # A stub added to the LAST section must land before the namespace-closing
+    # brace, not after it (which would not compile).
+    template = _annotated(CPP_TEMPLATE, with_hash=False)
+    existing = _annotated(
+        CPP_TEMPLATE.replace(
+            "void Comp ::\n  portTwo_handler(FwIndexType portNum)\n{\n  // TODO\n}\n",
+            "",
+        ),
+        with_hash=False,
+    )
+    merged, _ = merge.merge_cpp(existing, template)
+    new_index = merged.index("portTwo_handler")
+    ns_index = merged.index("}  // namespace M")
+    assert new_index < ns_index
 
 
 def test_cpp_parse_not_truncated_by_struct_close_brace():
