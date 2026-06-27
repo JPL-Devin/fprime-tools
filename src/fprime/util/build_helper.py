@@ -87,21 +87,21 @@ def _parse_gitmodules(gitmodules_path: Path):
     return [match.strip() for match in re.findall(r"path\s*=\s*(.+)", content)]
 
 
-def validate_submodules_and_libraries(build: Build):
-    """Check for uninitialized git submodules and empty library directories.
+def validate_submodules(build: Build):
+    """Check for uninitialized git submodules.
 
-    Parses .gitmodules in the project root and framework path, and checks each library
-    location from settings. Prints warnings for any that appear uninitialized (empty or
-    missing directories). Does not attempt to correct the problem.
+    Parses .gitmodules in the project root and framework path, and warns about any
+    submodule whose directory is empty or missing. Does not attempt to correct the
+    problem. Silently skips if no .gitmodules file exists.
     """
     try:
-        _check_submodules_and_libraries(build)
+        _check_submodules(build)
     except (OSError, UnicodeDecodeError):
         pass  # Advisory only — never block the build
 
 
-def _check_submodules_and_libraries(build: Build):
-    """Internal implementation of submodule/library validation."""
+def _check_submodules(build: Build):
+    """Internal implementation of submodule validation."""
     project_root = build.settings.get("project_root", None)
     framework_path = build.settings.get("framework_path", None)
 
@@ -130,25 +130,6 @@ def _check_submodules_and_libraries(build: Build):
             elif not full_path.exists():
                 print(
                     f"[WARNING] Git submodule '{sub_path}' directory does not exist: {full_path}\n"
-                    f"  Run 'git submodule update --init --recursive' to initialize submodules."
-                )
-
-    # Check library locations from settings
-    library_locations = build.settings.get("library_locations", [])
-    if library_locations:
-        for lib_loc in library_locations:
-            lib_path = Path(lib_loc)
-            if lib_path.is_dir():
-                if not any(lib_path.iterdir()):
-                    print(
-                        f"[WARNING] Library directory exists but is empty: {lib_path}\n"
-                        f"  This may indicate an uninitialized submodule or missing library content.\n"
-                        f"  Run 'git submodule update --init --recursive' to initialize submodules."
-                    )
-            elif not lib_path.exists():
-                print(
-                    f"[WARNING] Library directory does not exist: {lib_path}\n"
-                    f"  This may indicate an uninitialized submodule or incorrect library_locations in settings.ini.\n"
                     f"  Run 'git submodule update --init --recursive' to initialize submodules."
                 )
 
@@ -195,5 +176,5 @@ def load_build(parsed, skip_validation=False):
             skip_validation=skip_validation,
         )
     validate_tools_from_requirements(build)
-    validate_submodules_and_libraries(build)
+    validate_submodules(build)
     return build
