@@ -97,6 +97,14 @@ def validate_submodules_and_libraries(build: Build):
     location from settings. Prints warnings for any that appear uninitialized (empty or
     missing directories). Does not attempt to correct the problem.
     """
+    try:
+        _check_submodules_and_libraries(build)
+    except OSError:
+        pass  # Advisory only — never block the build
+
+
+def _check_submodules_and_libraries(build: Build):
+    """Internal implementation of submodule/library validation."""
     project_root = build.settings.get("project_root", None)
     framework_path = build.settings.get("framework_path", None)
 
