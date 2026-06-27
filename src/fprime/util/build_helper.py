@@ -84,7 +84,10 @@ def _parse_gitmodules(gitmodules_path: Path):
     if not gitmodules_path.is_file():
         return []
     content = gitmodules_path.read_text()
-    return [match.strip() for match in re.findall(r"path\s*=\s*(.+)", content)]
+    return [
+        match.strip()
+        for match in re.findall(r"^\s*path\s*=\s*(.+)", content, re.MULTILINE)
+    ]
 
 
 def validate_submodules(build: Build):
