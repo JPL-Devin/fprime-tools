@@ -99,7 +99,7 @@ def validate_submodules_and_libraries(build: Build):
     """
     try:
         _check_submodules_and_libraries(build)
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         pass  # Advisory only — never block the build
 
 
