@@ -14,6 +14,7 @@ are supported herein:
 @author mstarch
 """
 
+import re
 from pathlib import Path
 
 from fprime.fbuild.builder import Build, BuildType
@@ -71,6 +72,82 @@ def validate_tools_from_requirements(build: Build):
             print(message)
 
 
+def _parse_gitmodules(gitmodules_path: Path):
+    """Parse a .gitmodules file and return a list of submodule paths.
+
+    Args:
+        gitmodules_path: path to the .gitmodules file
+
+    Returns:
+        list of submodule path strings relative to the .gitmodules parent directory
+    """
+    if not gitmodules_path.is_file():
+        return []
+    content = gitmodules_path.read_text()
+    return [
+        match.strip()
+        for match in re.findall(r"path\s*=\s*(.+)", content)
+    ]
+
+
+def validate_submodules_and_libraries(build: Build):
+    """Check for uninitialized git submodules and empty library directories.
+
+    Parses .gitmodules in the project root and framework path, and checks each library
+    location from settings. Prints warnings for any that appear uninitialized (empty or
+    missing directories). Does not attempt to correct the problem.
+    """
+    project_root = build.settings.get("project_root", None)
+    framework_path = build.settings.get("framework_path", None)
+
+    # Collect unique roots to check for .gitmodules
+    roots_to_check = []
+    if project_root is not None:
+        roots_to_check.append(Path(project_root))
+    if framework_path is not None:
+        fw = Path(framework_path)
+        if fw not in roots_to_check:
+            roots_to_check.append(fw)
+
+    # Check submodules declared in .gitmodules
+    for root in roots_to_check:
+        gitmodules_file = root / ".gitmodules"
+        submodule_paths = _parse_gitmodules(gitmodules_file)
+        for sub_path in submodule_paths:
+            full_path = root / sub_path
+            if full_path.is_dir():
+                if not any(full_path.iterdir()):
+                    print(
+                        f"[WARNING] Git submodule '{sub_path}' appears uninitialized "
+                        f"(directory is empty): {full_path}\n"
+                        f"  Run 'git submodule update --init --recursive' to initialize submodules."
+                    )
+            elif not full_path.exists():
+                print(
+                    f"[WARNING] Git submodule '{sub_path}' directory does not exist: {full_path}\n"
+                    f"  Run 'git submodule update --init --recursive' to initialize submodules."
+                )
+
+    # Check library locations from settings
+    library_locations = build.settings.get("library_locations", [])
+    if library_locations:
+        for lib_loc in library_locations:
+            lib_path = Path(lib_loc)
+            if lib_path.is_dir():
+                if not any(lib_path.iterdir()):
+                    print(
+                        f"[WARNING] Library directory exists but is empty: {lib_path}\n"
+                        f"  This may indicate an uninitialized submodule or missing library content.\n"
+                        f"  Run 'git submodule update --init --recursive' to initialize submodules."
+                    )
+            elif not lib_path.exists():
+                print(
+                    f"[WARNING] Library directory does not exist: {lib_path}\n"
+                    f"  This may indicate an uninitialized submodule or incorrect library_locations in settings.ini.\n"
+                    f"  Run 'git submodule update --init --recursive' to initialize submodules."
+                )
+
+
 def load_build(parsed, skip_validation=False):
     """
     Loads Build object and returns it to the caller. Additionally, this will validate the
@@ -113,4 +190,5 @@ def load_build(parsed, skip_validation=False):
             skip_validation=skip_validation,
         )
     validate_tools_from_requirements(build)
+    validate_submodules_and_libraries(build)
     return build
