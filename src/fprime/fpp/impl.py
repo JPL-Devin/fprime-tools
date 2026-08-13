@@ -13,12 +13,17 @@ from pathlib import Path
 
 from typing import TYPE_CHECKING, Callable, Dict, List, Tuple
 
+from fprime.common.error import FprimeException
 from fprime.fbuild.builder import Build
 
 from fprime.fpp import merge
 from fprime.fpp.common import FppUtility
 from fprime.util.code_formatter import ClangFormatter
 from fprime.constants import UT_FILES_TARGET_PATH, UT_TEMPLATE_FILE_SUFFIX
+
+
+class ExperimentalFeatureError(FprimeException):
+    """Raised when an experimental feature is used without --accept-experimental"""
 
 
 def _apply_clang_formatting(
@@ -197,6 +202,11 @@ def run_fpp_impl(
         ___: unused pass-through arguments
     """
 
+    if parsed.auto_merge and not parsed.accept_experimental:
+        raise ExperimentalFeatureError(
+            "--auto-merge is an experimental feature and requires --accept-experimental"
+        )
+
     if parsed.ut and parsed.auto_merge:
         print("[WARNING] --auto-merge has no effect with --ut; ignoring --auto-merge.")
 
@@ -264,8 +274,16 @@ def add_fpp_impl_parsers(
         "--auto-merge",
         action="store_true",
         default=False,
-        help="Merge generated templates into existing CPP and HPP files. New function "
-        "stubs are added; hand-edited HPP sections abort the merge with a warning.",
+        help="[EXPERIMENTAL] Merge generated templates into existing CPP and HPP files. "
+        "New function stubs are added; hand-edited HPP sections abort the merge with a "
+        "warning. Requires --accept-experimental.",
+        required=False,
+    )
+    impl_parser.add_argument(
+        "--accept-experimental",
+        action="store_true",
+        default=False,
+        help="Acknowledge use of experimental features (required by --auto-merge).",
         required=False,
     )
     return {"impl": run_fpp_impl}, {"impl": impl_parser}
