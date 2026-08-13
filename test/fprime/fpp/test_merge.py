@@ -2,6 +2,7 @@
 Tests for fprime.fpp.merge (impl template auto-merge).
 """
 
+import re
 import textwrap
 
 import pytest
@@ -507,4 +508,51 @@ def test_merge_cpp_aborts_on_code_after_end_marker():
         f'auto-merge: end of section "{HANDLER_TITLE}"\nvoid Comp ::sneaky()\n{{\n}}',
     )
     with pytest.raises(merge.ImplMergeError, match="after the end marker"):
+        merge.merge_cpp(existing, template)
+
+
+def test_merge_hpp_aborts_on_deleted_marker():
+    template = _annotated(HPP_TEMPLATE, with_hash=True)
+    existing = "\n".join(
+        line
+        for line in template.split("\n")
+        if f'end of section "{HANDLER_TITLE}"' not in line
+    )
+    with pytest.raises(merge.ImplMergeError, match="no auto-merge marker"):
+        merge.merge_hpp(existing, template)
+
+
+def test_merge_hpp_aborts_on_corrupted_hash():
+    template = _annotated(HPP_TEMPLATE, with_hash=True)
+    existing = re.sub(r"section-hash=[0-9a-f]+", "section-hash=zzzz", template)
+    with pytest.raises(merge.ImplMergeError, match="no auto-merge marker"):
+        merge.merge_hpp(existing, template)
+
+
+def test_merge_hpp_aborts_on_wrong_hash():
+    template = _annotated(HPP_TEMPLATE, with_hash=True)
+    existing = re.sub(
+        r"section-hash=[0-9a-f]+", "section-hash=deadbeefdeadbeef", template
+    )
+    with pytest.raises(merge.ImplMergeError, match="has changed"):
+        merge.merge_hpp(existing, template)
+
+
+def test_merge_cpp_aborts_on_deleted_marker():
+    template = _annotated(CPP_TEMPLATE, with_hash=False)
+    existing = "\n".join(
+        line
+        for line in template.split("\n")
+        if f'end of section "{HANDLER_TITLE}"' not in line
+    )
+    with pytest.raises(merge.ImplMergeError, match="removed or corrupted"):
+        merge.merge_cpp(existing, template)
+
+
+def test_merge_cpp_aborts_on_corrupted_marker():
+    template = _annotated(CPP_TEMPLATE, with_hash=False)
+    existing = template.replace(
+        f'end of section "{HANDLER_TITLE}"', f'end of sectoin "{HANDLER_TITLE}"'
+    )
+    with pytest.raises(merge.ImplMergeError, match="removed or corrupted"):
         merge.merge_cpp(existing, template)

@@ -64,6 +64,7 @@ class Section:
     body_lines: List[str]
     stored_hash: Optional[str] = None
     gap_lines: List[str] = field(default_factory=list)
+    has_marker: bool = False
 
 
 @dataclass
@@ -249,7 +250,7 @@ def parse_impl(
             else trailer_start
         )
         region = lines[start + 3 : region_end]
-        body_lines, gap_lines, stored_hash = _split_region(region, title)
+        body_lines, gap_lines, stored_hash, has_marker = _split_region(region, title)
         sections.append(
             Section(
                 indent=indent,
@@ -257,6 +258,7 @@ def parse_impl(
                 body_lines=body_lines,
                 stored_hash=stored_hash,
                 gap_lines=gap_lines,
+                has_marker=has_marker,
             )
         )
     return ParsedImpl(preamble, sections, lines[trailer_start:])
@@ -264,8 +266,8 @@ def parse_impl(
 
 def _split_region(
     region: List[str], title: str
-) -> Tuple[List[str], List[str], Optional[str]]:
-    """Split a section region into (body, gap, stored_hash).
+) -> Tuple[List[str], List[str], Optional[str], bool]:
+    """Split a section region into (body, gap, stored_hash, has_marker).
 
     The gap is the inter-section text (access specifiers, blank lines) that sits
     between a section and the next banner. If an end marker is present it bounds
@@ -276,7 +278,7 @@ def _split_region(
         if match and match.group("title") == title:
             body = region[:offset]
             gap = [line for line in region[offset + 1 :] if line.strip()]
-            return _trim_edges(body), gap, match.group("hash")
+            return _trim_edges(body), gap, match.group("hash"), True
 
     # No marker yet: peel trailing access-specifier / blank lines into the gap.
     cut = len(region)
@@ -284,7 +286,7 @@ def _split_region(
         cut -= 1
     body = region[:cut]
     gap = [line for line in region[cut:] if line.strip()]
-    return _trim_edges(body), gap, None
+    return _trim_edges(body), gap, None, False
 
 
 def _banner(indent: str, title: str) -> List[str]:
@@ -633,6 +635,13 @@ def merge_cpp(existing_text: str, template_text: str) -> Tuple[str, List[str]]:
             "existing CPP has no recognizable sections "
             "(file predates auto-merge); not attempting auto merge"
         )
+
+    for section in existing.sections:
+        if not section.has_marker:
+            raise ImplMergeError(
+                f'section "{section.title}" has no auto-merge end marker '
+                "(marker removed or corrupted); not attempting auto merge"
+            )
 
     existing_by_title = _sections_by_title(existing.sections, "existing CPP")
     template_titles = {section.title for section in template.sections}
