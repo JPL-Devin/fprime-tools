@@ -144,8 +144,8 @@ def fpp_generate_implementation(
 
     if generate_ut:
         _move_ut_templates(output_dir, generated_file_names)
-    else:
-        # Annotate impl templates with section markers/hashes on every impl call.
+    elif auto_merge:
+        # Markers/hashes are only injected on --auto-merge runs (experimental).
         _annotate_impl_templates(output_dir)
 
     if overwrite:
@@ -154,7 +154,7 @@ def fpp_generate_implementation(
             new_filename = filename.replace(".template", "")
             os.rename(filename, new_filename)
     elif auto_merge:
-        _auto_merge_impl_templates(output_dir)
+        return _auto_merge_impl_templates(output_dir)
 
     return 0
 
@@ -162,16 +162,32 @@ def fpp_generate_implementation(
 def _annotate_impl_templates(output_dir: Path):
     """Inject section end markers (and HPP section hashes) into impl templates."""
     for filename in glob.glob(f"{output_dir}/*.template.hpp", recursive=False):
-        merge.annotate_file(Path(filename), with_hash=True)
+        try:
+            merge.annotate_file(Path(filename), with_hash=True)
+        except (OSError, UnicodeError) as error:
+            print(f"[WARNING] Could not annotate {filename}: {error}")
     for filename in glob.glob(f"{output_dir}/*.template.cpp", recursive=False):
-        merge.annotate_file(Path(filename), with_hash=False)
+        try:
+            merge.annotate_file(Path(filename), with_hash=False)
+        except (OSError, UnicodeError) as error:
+            print(f"[WARNING] Could not annotate {filename}: {error}")
 
 
-def _auto_merge_impl_templates(output_dir: Path):
-    """Merge generated impl templates into existing hand files where present."""
-    for hpp_filename in sorted(
-        glob.glob(f"{output_dir}/*.template.hpp", recursive=False)
-    ):
+def _auto_merge_impl_templates(output_dir: Path) -> int:
+    """Merge generated impl templates into existing hand files where present.
+
+    Returns non-zero when any component's merge was skipped or aborted.
+    """
+    failures = 0
+    hpp_templates = sorted(glob.glob(f"{output_dir}/*.template.hpp", recursive=False))
+    for cpp_filename in glob.glob(f"{output_dir}/*.template.cpp", recursive=False):
+        if not Path(cpp_filename.replace(".template.cpp", ".template.hpp")).exists():
+            print(
+                f"[WARNING] No matching template HPP for {Path(cpp_filename).name}; "
+                "skipping auto merge."
+            )
+            failures += 1
+    for hpp_filename in hpp_templates:
         template_hpp = Path(hpp_filename)
         template_cpp = Path(hpp_filename.replace(".template.hpp", ".template.cpp"))
         if not template_cpp.exists():
@@ -179,10 +195,15 @@ def _auto_merge_impl_templates(output_dir: Path):
                 f"[WARNING] No matching {template_cpp.name} for {template_hpp.name}; "
                 "skipping auto merge."
             )
+            failures += 1
             continue
         target_hpp = template_hpp.with_name(template_hpp.name.replace(".template", ""))
         target_cpp = template_cpp.with_name(template_cpp.name.replace(".template", ""))
-        merge.perform_auto_merge(template_hpp, template_cpp, target_hpp, target_cpp)
+        if not merge.perform_auto_merge(
+            template_hpp, template_cpp, target_hpp, target_cpp
+        ):
+            failures += 1
+    return 1 if failures else 0
 
 
 def run_fpp_impl(
@@ -218,7 +239,7 @@ def run_fpp_impl(
         parsed.ut,
         parsed.generate_test_helpers,
         parsed.overwrite,
-        parsed.auto_merge,
+        parsed.auto_merge and not parsed.ut,
     )
 
 
@@ -276,7 +297,7 @@ def add_fpp_impl_parsers(
         default=False,
         help="[EXPERIMENTAL] Merge generated templates into existing CPP and HPP files. "
         "New function stubs are added; hand-edited HPP sections abort the merge with a "
-        "warning. Requires --accept-experimental.",
+        "warning. Has no effect with --ut. Requires --accept-experimental.",
         required=False,
     )
     impl_parser.add_argument(

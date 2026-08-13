@@ -22,8 +22,7 @@ CTOR_TITLE = "Component construction and destruction"
 HANDLER_TITLE = "Handler implementations for typed input ports"
 
 HPP_TEMPLATE = (
-    textwrap.dedent(
-        """\
+    textwrap.dedent("""\
         // ======================================================================
         // \\title  Comp.hpp
         // \\author [user name]
@@ -67,16 +66,14 @@ HPP_TEMPLATE = (
         };
 
         #endif
-        """
-    )
+        """)
     .replace("__CTOR_BANNER__", _banner(CTOR_TITLE, "    "))
     .replace("__HANDLER_BANNER__", _banner(HANDLER_TITLE, "    "))
 )
 
 
 CPP_TEMPLATE = (
-    textwrap.dedent(
-        """\
+    textwrap.dedent("""\
         // ======================================================================
         // \\title  Comp.cpp
         // ======================================================================
@@ -114,8 +111,7 @@ CPP_TEMPLATE = (
         }
 
         }  // namespace M
-        """
-    )
+        """)
     .replace("__CTOR_BANNER__", _banner(CTOR_TITLE))
     .replace("__HANDLER_BANNER__", _banner(HANDLER_TITLE))
 )
@@ -248,8 +244,7 @@ def test_merge_hpp_unchanged_section_replaced_in_place():
     annotated = _annotated(HPP_TEMPLATE, with_hash=True)
     merged, warnings = merge.merge_hpp(annotated, annotated)
     assert warnings == []
-    # Idempotent: re-rendered text matches.
-    assert merge.render_impl(merge.parse_impl(merged)) == merged
+    assert merged == annotated
 
 
 def test_merge_hpp_aborts_on_hand_edit():
@@ -307,6 +302,7 @@ def test_merge_cpp_noop_when_nothing_new():
     template = _annotated(CPP_TEMPLATE, with_hash=False)
     merged, warnings = merge.merge_cpp(template, template)
     assert warnings == []
+    assert merged == template
 
 
 def test_merge_cpp_appends_inside_namespace():
@@ -424,3 +420,66 @@ def test_orphaned_definition_warning_flags_member_without_decl():
     assert any("removed_handler" in w for w in warnings)
     assert not any("kept_handler" in w for w in warnings)
     assert not any("localHelper" in w for w in warnings)
+
+
+# --------------------------------------------------------------------------
+# Review-driven regression tests (local review iteration 1)
+# --------------------------------------------------------------------------
+NESTED_CPP_TEMPLATE = CPP_TEMPLATE.replace(
+    "namespace M {", "namespace M {\nnamespace N {"
+).replace("}  // namespace M", "}  // namespace N\n}  // namespace M")
+
+
+def test_merge_cpp_appends_inside_nested_namespaces():
+    # New stubs must land inside the INNERMOST namespace, not between closes.
+    template = _annotated(NESTED_CPP_TEMPLATE, with_hash=False)
+    existing = _annotated(
+        NESTED_CPP_TEMPLATE.replace(
+            "void Comp ::\n  portTwo_handler(FwIndexType portNum)\n{\n  // TODO\n}\n",
+            "",
+        ),
+        with_hash=False,
+    )
+    merged, _ = merge.merge_cpp(existing, template)
+    assert merged.index("portTwo_handler") < merged.index("}  // namespace N")
+
+
+def test_parse_nested_namespace_trailer_keeps_all_closes():
+    parsed = merge.parse_impl(
+        _annotated(NESTED_CPP_TEMPLATE, with_hash=False),
+        trailer_re=merge.NAMESPACE_CLOSE_RE,
+    )
+    trailer = "\n".join(parsed.trailer_lines)
+    assert "// namespace N" in trailer and "// namespace M" in trailer
+
+
+def test_merge_cpp_aborts_on_duplicate_section_titles():
+    template = _annotated(CPP_TEMPLATE, with_hash=False)
+    duplicated = _annotated(
+        CPP_TEMPLATE.replace(
+            "}  // namespace M",
+            _banner(HANDLER_TITLE)
+            + "\n\nvoid Comp ::\n  handWork()\n{\n}\n\n}  // namespace M",
+        ),
+        with_hash=False,
+    )
+    with pytest.raises(merge.ImplMergeError, match="duplicate section title"):
+        merge.merge_cpp(duplicated, template)
+
+
+def test_merge_cpp_aborts_on_sectionless_existing_file():
+    template = _annotated(CPP_TEMPLATE, with_hash=False)
+    legacy = '#include "Comp.hpp"\nnamespace M {\nvoid Comp ::foo() {}\n}\n'
+    with pytest.raises(merge.ImplMergeError, match="no recognizable sections"):
+        merge.merge_cpp(legacy, template)
+
+
+def test_annotate_file_matches_annotated_helper(tmp_path):
+    hpp = tmp_path / "Comp.template.hpp"
+    cpp = tmp_path / "Comp.template.cpp"
+    hpp.write_text(HPP_TEMPLATE)
+    cpp.write_text(CPP_TEMPLATE)
+    merge.annotate_file(hpp, with_hash=True)
+    merge.annotate_file(cpp, with_hash=False)
+    assert hpp.read_text() == _annotated(HPP_TEMPLATE, with_hash=True)
+    assert cpp.read_text() == _annotated(CPP_TEMPLATE, with_hash=False)

@@ -5,9 +5,9 @@ self-contained and is only invoked from ``impl.py`` so that normal implementatio
 generation stays untouched.
 
 Strategy:
-  * Every ``impl`` run annotates the generated ``*.template.{hpp,cpp}`` files with
-    per-section "end" markers. For HPP sections the marker also stores a hash of
-    the section contents, used to detect hand edits before a later merge.
+  * ``impl --auto-merge`` runs annotate the generated ``*.template.{hpp,cpp}``
+    files with per-section "end" markers. For HPP sections the marker also stores
+    a hash of the section contents, used to detect hand edits before a later merge.
   * With ``--auto-merge`` and pre-existing hand files, HPP sections are replaced
     only when their stored hash still matches (otherwise: warn and abort), while
     CPP sections are merged additively: new function stubs are appended, existing
@@ -42,6 +42,8 @@ CLASS_CLOSE_RE = re.compile(r"^\s*};\s*$")
 # A namespace-closing brace: a lone "}" (optionally with a trailing comment), no
 # semicolon (which would make it a struct/enum close instead).
 NAMESPACE_CLOSE_RE = re.compile(r"^\s*\}\s*(?://.*)?$")
+# A namespace-opening line such as "namespace Svc {".
+NAMESPACE_OPEN_RE = re.compile(r"^\s*namespace\s+\w+\s*\{\s*(?://.*)?$")
 # An identifier immediately followed by "(": a declaration/definition name.
 DECL_NAME_RE = re.compile(r"(~?[A-Za-z_]\w*)\s*\(")
 
@@ -122,7 +124,8 @@ def _is_title_line(line: str) -> bool:
 def _parse_title(line: str) -> Tuple[str, str]:
     """Return (indent, title) for a banner title line."""
     match = re.match(r"^(?P<indent>\s*)//\s?(?P<title>.*\S)\s*$", line)
-    assert match is not None
+    if match is None:
+        raise ImplMergeError(f"unrecognized banner title line: {line!r}")
     return match.group("indent"), match.group("title")
 
 
@@ -155,12 +158,31 @@ def parse_impl(
     """
     lines = text.split("\n")
 
-    # The closing brace and everything after it is the trailer.
+    # The closing brace and everything after it is the trailer. For CPP files,
+    # every namespace opened must close in the trailer (nested namespaces).
     trailer_start = len(lines)
     if trailer_re is not None:
         for index in range(len(lines) - 1, -1, -1):
             if trailer_re.match(lines[index]):
                 trailer_start = index
+                break
+        if trailer_re is NAMESPACE_CLOSE_RE:
+            remaining = (
+                sum(
+                    1 for line in lines[:trailer_start] if NAMESPACE_OPEN_RE.match(line)
+                )
+                - 1
+            )
+            probe = trailer_start - 1
+            while remaining > 0 and probe >= 0:
+                if not lines[probe].strip():
+                    probe -= 1
+                    continue
+                if trailer_re.match(lines[probe]):
+                    trailer_start = probe
+                    remaining -= 1
+                    probe -= 1
+                    continue
                 break
 
     banner_starts = _find_banner_starts(lines, trailer_start)
@@ -332,7 +354,10 @@ def _function_name(block_text: str) -> str:
     signature = block_text[:brace] if brace != -1 else block_text
     paren = signature.find("(")
     if paren == -1:
-        raise ImplMergeError("unable to parse a CPP function definition")
+        first_line = block_text.split("\n", 1)[0].strip()
+        raise ImplMergeError(
+            f"unable to parse a CPP function definition (near {first_line!r})"
+        )
     match = re.search(r"(~?\w+)\s*$", signature[:paren])
     if match is None:
         raise ImplMergeError("unable to determine a CPP function name")
@@ -350,6 +375,34 @@ def _function_map(blocks: List[FunctionBlock], where: str) -> Dict[str, Function
             )
         mapping[block.name] = block
     return mapping
+
+
+def _sections_by_title(sections: List[Section], where: str) -> Dict[str, Section]:
+    """Map section title to section, aborting on duplicate banner titles."""
+    mapping: Dict[str, Section] = {}
+    for section in sections:
+        if section.title in mapping:
+            raise ImplMergeError(
+                f'duplicate section title "{section.title}" in {where}; '
+                "auto merge cannot disambiguate"
+            )
+        mapping[section.title] = section
+    return mapping
+
+
+def _preserve_removed_sections(
+    existing: ParsedImpl,
+    template_titles: set,
+    merged: List[Section],
+    warnings: List[str],
+) -> None:
+    """Append existing sections absent from the template, warning for each."""
+    for section in existing.sections:
+        if section.title not in template_titles:
+            warnings.append(
+                f'section "{section.title}" is no longer in the model; preserved as-is'
+            )
+            merged.append(section)
 
 
 def merge_hpp(existing_text: str, template_text: str) -> Tuple[str, List[str]]:
@@ -375,7 +428,8 @@ def merge_hpp(existing_text: str, template_text: str) -> Tuple[str, List[str]]:
                 f'section "{section.title}" has changed, not attempting auto merge'
             )
 
-    existing_by_title = {section.title: section for section in existing.sections}
+    existing_by_title = _sections_by_title(existing.sections, "existing HPP")
+    _sections_by_title(template.sections, "template HPP")
     template_titles = {section.title for section in template.sections}
 
     merged: List[Section] = []
@@ -391,12 +445,7 @@ def merge_hpp(existing_text: str, template_text: str) -> Tuple[str, List[str]]:
                 gap_lines=gap,
             )
         )
-    for section in existing.sections:
-        if section.title not in template_titles:
-            warnings.append(
-                f'section "{section.title}" is no longer in the model; preserved as-is'
-            )
-            merged.append(section)
+    _preserve_removed_sections(existing, template_titles, merged, warnings)
 
     result = ParsedImpl(existing.preamble_lines, merged, existing.trailer_lines)
     return render_impl(result), warnings
@@ -419,6 +468,7 @@ def _orphaned_definition_warnings(merged_hpp: str, merged_cpp: str) -> List[str]
         try:
             blocks = split_functions(section.body_lines)
         except ImplMergeError:
+            # Unparseable sections are skipped: this is a warning-only pass.
             continue
         for block in blocks:
             signature = "\n".join(block.lines)
@@ -445,8 +495,10 @@ def perform_auto_merge(
     """Auto-merge one component's templates into its hand files.
 
     All merged text is computed in memory before any target file is touched, then
-    committed via temporary files. On any abort the targets and templates are left
-    untouched and ``False`` is returned. Templates are removed only on success.
+    committed via temporary files. On a merge abort the targets and templates are
+    left untouched and ``False`` is returned; a mid-commit I/O failure may leave
+    the pair partially updated (reported in the warning). Templates are removed
+    only on success.
     """
     if not target_hpp.exists() and not target_cpp.exists():
         template_hpp.rename(target_hpp)
@@ -475,14 +527,27 @@ def perform_auto_merge(
     except ImplMergeError as error:
         print(f"[WARNING] {error}. Auto merge aborted; templates left in place.")
         return False
+    except (OSError, UnicodeError) as error:
+        print(f"[WARNING] auto merge I/O failure: {error}. Templates left in place.")
+        return False
 
     tmp_hpp = target_hpp.with_name(target_hpp.name + ".automerge.tmp")
     tmp_cpp = target_cpp.with_name(target_cpp.name + ".automerge.tmp")
+    committed: List[str] = []
     try:
         tmp_hpp.write_text(merged_hpp, encoding="utf-8")
         tmp_cpp.write_text(merged_cpp, encoding="utf-8")
         os.replace(tmp_hpp, target_hpp)
+        committed.append(target_hpp.name)
         os.replace(tmp_cpp, target_cpp)
+        committed.append(target_cpp.name)
+    except OSError as error:
+        print(
+            f"[WARNING] auto merge I/O failure while committing: {error}. "
+            f"Files updated so far: {', '.join(committed) or 'none'}. "
+            "Templates left in place."
+        )
+        return False
     finally:
         for leftover in (tmp_hpp, tmp_cpp):
             if leftover.exists():
@@ -503,7 +568,13 @@ def merge_cpp(existing_text: str, template_text: str) -> Tuple[str, List[str]]:
     template = parse_impl(template_text, trailer_re=NAMESPACE_CLOSE_RE)
     warnings: List[str] = []
 
-    existing_by_title = {section.title: section for section in existing.sections}
+    if not existing.sections and template.sections:
+        raise ImplMergeError(
+            "existing CPP has no recognizable sections "
+            "(file predates auto-merge); not attempting auto merge"
+        )
+
+    existing_by_title = _sections_by_title(existing.sections, "existing CPP")
     template_titles = {section.title for section in template.sections}
 
     merged: List[Section] = []
@@ -523,6 +594,7 @@ def merge_cpp(existing_text: str, template_text: str) -> Tuple[str, List[str]]:
             split_functions(prior.body_lines), f'existing section "{tmpl.title}"'
         )
         template_funcs = split_functions(tmpl.body_lines)
+        # Called solely to raise on duplicate (overloaded) template names.
         _function_map(template_funcs, f'template section "{tmpl.title}"')
 
         body = _trim_edges(prior.body_lines)
@@ -545,12 +617,7 @@ def merge_cpp(existing_text: str, template_text: str) -> Tuple[str, List[str]]:
                 gap_lines=prior.gap_lines,
             )
         )
-    for section in existing.sections:
-        if section.title not in template_titles:
-            warnings.append(
-                f'section "{section.title}" is no longer in the model; preserved as-is'
-            )
-            merged.append(section)
+    _preserve_removed_sections(existing, template_titles, merged, warnings)
 
     result = ParsedImpl(existing.preamble_lines, merged, existing.trailer_lines)
     return render_impl(result), warnings
