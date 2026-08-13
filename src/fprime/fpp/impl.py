@@ -142,11 +142,12 @@ def fpp_generate_implementation(
     if apply_formatting:
         _apply_clang_formatting(build, framework_path, output_dir, generated_file_names)
 
+    annotate_failures = 0
     if generate_ut:
         _move_ut_templates(output_dir, generated_file_names)
     elif auto_merge:
         # Markers/hashes are only injected on --auto-merge runs (experimental).
-        _annotate_impl_templates(output_dir)
+        annotate_failures = _annotate_impl_templates(output_dir)
 
     if overwrite:
         file_list = glob.glob(f"{output_dir}/*.template.*pp", recursive=False)
@@ -154,23 +155,28 @@ def fpp_generate_implementation(
             new_filename = filename.replace(".template", "")
             os.rename(filename, new_filename)
     elif auto_merge:
-        return _auto_merge_impl_templates(output_dir)
+        return 1 if (_auto_merge_impl_templates(output_dir) or annotate_failures) else 0
 
     return 0
 
 
-def _annotate_impl_templates(output_dir: Path):
-    """Inject section end markers (and HPP section hashes) into impl templates."""
-    for filename in glob.glob(f"{output_dir}/*.template.hpp", recursive=False):
+def _annotate_impl_templates(output_dir: Path) -> int:
+    """Inject section end markers (and HPP section hashes) into impl templates.
+
+    Returns the number of templates that could not be annotated.
+    """
+    failures = 0
+    for path, with_hash in [
+        (path, path.suffix == ".hpp")
+        for path in sorted(Path(output_dir).glob("*.template.hpp"))
+        + sorted(Path(output_dir).glob("*.template.cpp"))
+    ]:
         try:
-            merge.annotate_file(Path(filename), with_hash=True)
-        except (OSError, UnicodeError) as error:
-            print(f"[WARNING] Could not annotate {filename}: {error}")
-    for filename in glob.glob(f"{output_dir}/*.template.cpp", recursive=False):
-        try:
-            merge.annotate_file(Path(filename), with_hash=False)
-        except (OSError, UnicodeError) as error:
-            print(f"[WARNING] Could not annotate {filename}: {error}")
+            merge.annotate_file(path, with_hash=with_hash)
+        except (OSError, UnicodeError, merge.ImplMergeError) as error:
+            print(f"[WARNING] Could not annotate {path.name}: {error}")
+            failures += 1
+    return failures
 
 
 def _auto_merge_impl_templates(output_dir: Path) -> int:
@@ -179,17 +185,20 @@ def _auto_merge_impl_templates(output_dir: Path) -> int:
     Returns non-zero when any component's merge was skipped or aborted.
     """
     failures = 0
-    hpp_templates = sorted(glob.glob(f"{output_dir}/*.template.hpp", recursive=False))
-    for cpp_filename in glob.glob(f"{output_dir}/*.template.cpp", recursive=False):
-        if not Path(cpp_filename.replace(".template.cpp", ".template.hpp")).exists():
+    hpp_templates = sorted(Path(output_dir).glob("*.template.hpp"))
+    for template_cpp_path in Path(output_dir).glob("*.template.cpp"):
+        if not template_cpp_path.with_name(
+            template_cpp_path.name.replace(".template.cpp", ".template.hpp")
+        ).exists():
             print(
-                f"[WARNING] No matching template HPP for {Path(cpp_filename).name}; "
+                f"[WARNING] No matching template HPP for {template_cpp_path.name}; "
                 "skipping auto merge."
             )
             failures += 1
-    for hpp_filename in hpp_templates:
-        template_hpp = Path(hpp_filename)
-        template_cpp = Path(hpp_filename.replace(".template.hpp", ".template.cpp"))
+    for template_hpp in hpp_templates:
+        template_cpp = template_hpp.with_name(
+            template_hpp.name.replace(".template.hpp", ".template.cpp")
+        )
         if not template_cpp.exists():
             print(
                 f"[WARNING] No matching {template_cpp.name} for {template_hpp.name}; "

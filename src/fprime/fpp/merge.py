@@ -22,6 +22,7 @@ in a warning and an aborted merge rather than a risky edit.
 import hashlib
 import os
 import re
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -146,6 +147,55 @@ def _find_banner_starts(lines: List[str], limit: int) -> List[int]:
     return starts
 
 
+def _namespace_close_lines(lines: List[str]) -> List[bool]:
+    """Per line: whether its (only) closing brace pops a ``namespace X {`` brace.
+
+    Braces inside comments and string/char literals are ignored. A line is
+    flagged only when the single brace it closes was opened by a line matching
+    ``NAMESPACE_OPEN_RE``.
+    """
+    flags = [False] * len(lines)
+    stack: List[bool] = []  # True where the open brace came from a namespace line
+    state = "normal"
+    for line_no, line in enumerate(lines):
+        is_ns_open = state == "normal" and NAMESPACE_OPEN_RE.match(line) is not None
+        index = 0
+        length = len(line)
+        while index < length:
+            char = line[index]
+            nxt = line[index + 1] if index + 1 < length else ""
+            if state == "block_comment":
+                if char == "*" and nxt == "/":
+                    state = "normal"
+                    index += 1
+            elif state == "string":
+                if char == "\\":
+                    index += 1
+                elif char == '"':
+                    state = "normal"
+            elif state == "char":
+                if char == "\\":
+                    index += 1
+                elif char == "'":
+                    state = "normal"
+            else:
+                if char == "/" and nxt == "/":
+                    break
+                if char == "/" and nxt == "*":
+                    state = "block_comment"
+                    index += 1
+                elif char == '"':
+                    state = "string"
+                elif char == "'":
+                    state = "char"
+                elif char == "{":
+                    stack.append(is_ns_open)
+                elif char == "}":
+                    flags[line_no] = bool(stack) and stack.pop()
+            index += 1
+    return flags
+
+
 def parse_impl(
     text: str, trailer_re: Optional["re.Pattern[str]"] = CLASS_CLOSE_RE
 ) -> ParsedImpl:
@@ -166,21 +216,21 @@ def parse_impl(
             if trailer_re.match(lines[index]):
                 trailer_start = index
                 break
-        if trailer_re is NAMESPACE_CLOSE_RE:
-            remaining = (
-                sum(
-                    1 for line in lines[:trailer_start] if NAMESPACE_OPEN_RE.match(line)
+        if trailer_re is NAMESPACE_CLOSE_RE and trailer_start < len(lines):
+            # Extend the trailer backward over blank lines and closing braces
+            # that verifiably pop a namespace-opened brace (nested namespaces).
+            ns_close = _namespace_close_lines(lines)
+            if not ns_close[trailer_start]:
+                raise ImplMergeError(
+                    "unbalanced braces near the namespace-closing trailer"
                 )
-                - 1
-            )
             probe = trailer_start - 1
-            while remaining > 0 and probe >= 0:
+            while probe >= 0:
                 if not lines[probe].strip():
                     probe -= 1
                     continue
-                if trailer_re.match(lines[probe]):
+                if trailer_re.match(lines[probe]) and ns_close[probe]:
                     trailer_start = probe
-                    remaining -= 1
                     probe -= 1
                     continue
                 break
@@ -531,8 +581,18 @@ def perform_auto_merge(
         print(f"[WARNING] auto merge I/O failure: {error}. Templates left in place.")
         return False
 
-    tmp_hpp = target_hpp.with_name(target_hpp.name + ".automerge.tmp")
-    tmp_cpp = target_cpp.with_name(target_cpp.name + ".automerge.tmp")
+    # Unique temp names so a leftover or user file at a fixed name is never
+    # clobbered or deleted.
+    handle_hpp, tmp_name_hpp = tempfile.mkstemp(
+        dir=target_hpp.parent, prefix=target_hpp.name + ".automerge.", suffix=".tmp"
+    )
+    handle_cpp, tmp_name_cpp = tempfile.mkstemp(
+        dir=target_cpp.parent, prefix=target_cpp.name + ".automerge.", suffix=".tmp"
+    )
+    os.close(handle_hpp)
+    os.close(handle_cpp)
+    tmp_hpp = Path(tmp_name_hpp)
+    tmp_cpp = Path(tmp_name_cpp)
     committed: List[str] = []
     try:
         tmp_hpp.write_text(merged_hpp, encoding="utf-8")
@@ -590,6 +650,16 @@ def merge_cpp(existing_text: str, template_text: str) -> Tuple[str, List[str]]:
                 )
             )
             continue
+        code_in_gap = [
+            line
+            for line in prior.gap_lines
+            if line.strip() and not line.strip().startswith("//")
+        ]
+        if code_in_gap:
+            raise ImplMergeError(
+                f'code found after the end marker of section "{tmpl.title}" '
+                "(move it above the marker); not attempting auto merge"
+            )
         existing_funcs = _function_map(
             split_functions(prior.body_lines), f'existing section "{tmpl.title}"'
         )

@@ -483,3 +483,28 @@ def test_annotate_file_matches_annotated_helper(tmp_path):
     merge.annotate_file(cpp, with_hash=False)
     assert hpp.read_text() == _annotated(HPP_TEMPLATE, with_hash=True)
     assert cpp.read_text() == _annotated(CPP_TEMPLATE, with_hash=False)
+
+
+def test_trailer_probe_does_not_swallow_function_close():
+    # A helper namespace opened AND closed mid-file must not cause the trailer
+    # probe to absorb the last function's closing brace (iter-2 must-fix).
+    src = CPP_TEMPLATE.replace(
+        "namespace M {",
+        "namespace Helpers {\nvoid util()\n{\n}\n}\n\nnamespace M {",
+    )
+    parsed = merge.parse_impl(
+        _annotated(src, with_hash=False), trailer_re=merge.NAMESPACE_CLOSE_RE
+    )
+    handler = [s for s in parsed.sections if s.title == HANDLER_TITLE][0]
+    blocks = merge.split_functions(handler.body_lines)
+    assert [b.name for b in blocks] == ["portOne_handler", "portTwo_handler"]
+
+
+def test_merge_cpp_aborts_on_code_after_end_marker():
+    template = _annotated(CPP_TEMPLATE, with_hash=False)
+    existing = template.replace(
+        f'auto-merge: end of section "{HANDLER_TITLE}"',
+        f'auto-merge: end of section "{HANDLER_TITLE}"\nvoid Comp ::sneaky()\n{{\n}}',
+    )
+    with pytest.raises(merge.ImplMergeError, match="after the end marker"):
+        merge.merge_cpp(existing, template)
