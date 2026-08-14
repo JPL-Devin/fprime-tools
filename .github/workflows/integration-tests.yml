@@ -72,14 +72,13 @@ jobs:
           fprime-util generate --build-cache ./build-ninja
           fprime-util build --build-cache ./build-ninja
           fprime-util hash-to-file 0x72ad3277 --build-cache ./build-ninja
-      # 0xf610caa8 is Svc/BufferManager/test/ut/BufferManagerTestMain.cpp, a file that should be consistent
-      # FPRIME_ENABLE_FRAMEWORK_UTS=ON overrides project settings.ini defaults so the hash stays present
+      # 0x880811b1 is Ref/SignalGen/test/ut/SignalGenTestMain.cpp, a deployment UT built regardless of framework UT settings
       - name: Test special generation on Ref UTs
         working-directory: fprime/${{ matrix.ref-path }}
         run: |
-          fprime-util generate --make --build-cache ./special-cache --ut -DFPRIME_ENABLE_AUTOCODER_UTS=OFF -DFPRIME_ENABLE_FRAMEWORK_UTS=ON
+          fprime-util generate --make --build-cache ./special-cache --ut -DFPRIME_ENABLE_AUTOCODER_UTS=OFF
           fprime-util build --build-cache ./special-cache
-          fprime-util hash-to-file 0xf610caa8 --build-cache ./special-cache
+          fprime-util hash-to-file 0x880811b1 --build-cache ./special-cache
 
   visualizer-integration:
     runs-on: ubuntu-latest
