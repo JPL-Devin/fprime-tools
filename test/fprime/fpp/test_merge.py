@@ -23,7 +23,8 @@ CTOR_TITLE = "Component construction and destruction"
 HANDLER_TITLE = "Handler implementations for typed input ports"
 
 HPP_TEMPLATE = (
-    textwrap.dedent("""\
+    textwrap.dedent(
+        """\
         // ======================================================================
         // \\title  Comp.hpp
         // \\author [user name]
@@ -67,14 +68,16 @@ HPP_TEMPLATE = (
         };
 
         #endif
-        """)
+        """
+    )
     .replace("__CTOR_BANNER__", _banner(CTOR_TITLE, "    "))
     .replace("__HANDLER_BANNER__", _banner(HANDLER_TITLE, "    "))
 )
 
 
 CPP_TEMPLATE = (
-    textwrap.dedent("""\
+    textwrap.dedent(
+        """\
         // ======================================================================
         // \\title  Comp.cpp
         // ======================================================================
@@ -112,7 +115,8 @@ CPP_TEMPLATE = (
         }
 
         }  // namespace M
-        """)
+        """
+    )
     .replace("__CTOR_BANNER__", _banner(CTOR_TITLE))
     .replace("__HANDLER_BANNER__", _banner(HANDLER_TITLE))
 )
