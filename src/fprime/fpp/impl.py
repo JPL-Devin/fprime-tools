@@ -13,11 +13,17 @@ from pathlib import Path
 
 from typing import TYPE_CHECKING, Callable, Dict, List, Tuple
 
+from fprime.common.error import FprimeException
 from fprime.fbuild.builder import Build
 
+from fprime.fpp import merge
 from fprime.fpp.common import FppUtility
 from fprime.util.code_formatter import ClangFormatter
 from fprime.constants import UT_FILES_TARGET_PATH, UT_TEMPLATE_FILE_SUFFIX
+
+
+class ExperimentalFeatureError(FprimeException):
+    """Raised when an experimental feature is used without --accept-experimental"""
 
 
 def _apply_clang_formatting(
@@ -81,6 +87,7 @@ def fpp_generate_implementation(
     generate_ut: bool,
     generate_test_helpers: bool = False,
     overwrite: bool = False,
+    auto_merge: bool = False,
 ) -> int:
     """
     Generate implementation files from FPP templates.
@@ -93,6 +100,7 @@ def fpp_generate_implementation(
         generate_ut: Generates UT files if set to True
         generate_test_helpers: Generate of test helper code if set to True
         overwrite: Overwrite existing implementation files if set to True
+        auto_merge: Merge generated templates into existing hand files if set to True
     """
 
     prefixes = [
@@ -134,16 +142,77 @@ def fpp_generate_implementation(
     if apply_formatting:
         _apply_clang_formatting(build, framework_path, output_dir, generated_file_names)
 
+    annotate_failures = 0
     if generate_ut:
         _move_ut_templates(output_dir, generated_file_names)
+    elif auto_merge:
+        # Markers/hashes are only injected on --auto-merge runs (experimental).
+        annotate_failures = _annotate_impl_templates(output_dir)
 
     if overwrite:
         file_list = glob.glob(f"{output_dir}/*.template.*pp", recursive=False)
         for filename in file_list:
             new_filename = filename.replace(".template", "")
             os.rename(filename, new_filename)
+    elif auto_merge:
+        return 1 if (_auto_merge_impl_templates(output_dir) or annotate_failures) else 0
 
     return 0
+
+
+def _annotate_impl_templates(output_dir: Path) -> int:
+    """Inject section end markers (and HPP section hashes) into impl templates.
+
+    Returns the number of templates that could not be annotated.
+    """
+    failures = 0
+    for path, with_hash in [
+        (path, path.suffix == ".hpp")
+        for path in sorted(Path(output_dir).glob("*.template.hpp"))
+        + sorted(Path(output_dir).glob("*.template.cpp"))
+    ]:
+        try:
+            merge.annotate_file(path, with_hash=with_hash)
+        except (OSError, UnicodeError, merge.ImplMergeError) as error:
+            print(f"[WARNING] Could not annotate {path.name}: {error}")
+            failures += 1
+    return failures
+
+
+def _auto_merge_impl_templates(output_dir: Path) -> int:
+    """Merge generated impl templates into existing hand files where present.
+
+    Returns non-zero when any component's merge was skipped or aborted.
+    """
+    failures = 0
+    hpp_templates = sorted(Path(output_dir).glob("*.template.hpp"))
+    for template_cpp_path in Path(output_dir).glob("*.template.cpp"):
+        if not template_cpp_path.with_name(
+            template_cpp_path.name.replace(".template.cpp", ".template.hpp")
+        ).exists():
+            print(
+                f"[WARNING] No matching template HPP for {template_cpp_path.name}; "
+                "skipping auto merge."
+            )
+            failures += 1
+    for template_hpp in hpp_templates:
+        template_cpp = template_hpp.with_name(
+            template_hpp.name.replace(".template.hpp", ".template.cpp")
+        )
+        if not template_cpp.exists():
+            print(
+                f"[WARNING] No matching {template_cpp.name} for {template_hpp.name}; "
+                "skipping auto merge."
+            )
+            failures += 1
+            continue
+        target_hpp = template_hpp.with_name(template_hpp.name.replace(".template", ""))
+        target_cpp = template_cpp.with_name(template_cpp.name.replace(".template", ""))
+        if not merge.perform_auto_merge(
+            template_hpp, template_cpp, target_hpp, target_cpp
+        ):
+            failures += 1
+    return 1 if failures else 0
 
 
 def run_fpp_impl(
@@ -163,6 +232,14 @@ def run_fpp_impl(
         ___: unused pass-through arguments
     """
 
+    if parsed.auto_merge and not parsed.accept_experimental:
+        raise ExperimentalFeatureError(
+            "--auto-merge is an experimental feature and requires --accept-experimental"
+        )
+
+    if parsed.ut and parsed.auto_merge:
+        print("[WARNING] --auto-merge has no effect with --ut; ignoring --auto-merge.")
+
     return fpp_generate_implementation(
         build,
         Path(parsed.output_dir),
@@ -171,6 +248,7 @@ def run_fpp_impl(
         parsed.ut,
         parsed.generate_test_helpers,
         parsed.overwrite,
+        parsed.auto_merge and not parsed.ut,
     )
 
 
@@ -214,11 +292,28 @@ def add_fpp_impl_parsers(
         help="Generate test helper code for hand-coding. Default to False, leveraging the test helpers autocoded by FPP.",
         required=False,
     )
-    impl_parser.add_argument(
+    write_group = impl_parser.add_mutually_exclusive_group()
+    write_group.add_argument(
         "--overwrite",
         action="store_true",
         default=False,
         help="Overwrite contents of current CPP and HPP files. Use with caution.",
+        required=False,
+    )
+    write_group.add_argument(
+        "--auto-merge",
+        action="store_true",
+        default=False,
+        help="[EXPERIMENTAL] Merge generated templates into existing CPP and HPP files. "
+        "New function stubs are added; hand-edited HPP sections abort the merge with a "
+        "warning. Has no effect with --ut. Requires --accept-experimental.",
+        required=False,
+    )
+    impl_parser.add_argument(
+        "--accept-experimental",
+        action="store_true",
+        default=False,
+        help="Acknowledge use of experimental features (required by --auto-merge).",
         required=False,
     )
     return {"impl": run_fpp_impl}, {"impl": impl_parser}
