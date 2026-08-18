@@ -191,3 +191,19 @@ def test_composite_target_pass_handler():
         [child1, child2, child3], "composite", "", TargetScope.LOCAL
     )
     assert composite.pass_handler() == "handler1,handler3"
+
+
+def test_check_coverage_existing_targets_gcovr_only():
+    """Test that check --coverage --existing targets run gcovr only (no test execution)"""
+    import fprime.fbuild.target_definitions  # noqa: F401 registers targets
+    from fprime.fbuild.gcovr import ExistingCoverageTarget, Gcovr
+
+    for flags in [
+        {"coverage", "existing"},
+        {"coverage", "existing", "recursive"},
+        {"coverage", "existing", "all"},
+    ]:
+        target = Target.get_target("check", flags)
+        assert isinstance(target, ExistingCoverageTarget)
+        assert len(target.targets) == 1
+        assert isinstance(target.targets[0], Gcovr)

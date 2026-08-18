@@ -263,3 +263,11 @@ class GcovrTarget(CompositeTarget):
             *args,
             **kwargs,
         )
+
+
+class ExistingCoverageTarget(CompositeTarget):
+    """Gcovr-only target: calculate coverage from data already on disk without re-running tests"""
+
+    def __init__(self, scope: TargetScope, *args, **kwargs):
+        """Constructor delegating solely to the Gcovr action"""
+        super().__init__([Gcovr(scope)], scope=scope, *args, **kwargs)
