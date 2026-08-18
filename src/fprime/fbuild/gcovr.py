@@ -264,10 +264,30 @@ class GcovrTarget(CompositeTarget):
             **kwargs,
         )
 
+    def option_args(self):
+        """Option arguments, adding the --existing switch"""
+        return super().option_args() + [
+            (
+                "--existing",
+                "[coverage only] Calculate coverage from existing coverage data without re-running tests",
+            ),
+        ]
 
-class CoverageTarget(CompositeTarget):
-    """Gcovr-only target: calculate coverage from data already on disk without re-running tests"""
-
-    def __init__(self, scope: TargetScope, *args, **kwargs):
-        """Constructor delegating solely to the Gcovr action"""
-        super().__init__([Gcovr(scope)], scope=scope, *args, **kwargs)
+    def execute(
+        self,
+        builder: "Build",
+        context: ExecuteContext,
+        args: Tuple[Dict[str, str], List[str], Dict[str, bool]],
+    ):
+        """Executes children, skipping the test-run step when --existing is set"""
+        children = self.targets
+        if args[2].get("--existing", False):
+            children = [child for child in children if isinstance(child, Gcovr)]
+        for child in children:
+            # Composite actions must override scope as a delegator may have acted to change the scope
+            old_scope = child.scope
+            try:
+                child.scope = self.scope
+                child.execute(builder, context, args)
+            finally:
+                child.scope = old_scope

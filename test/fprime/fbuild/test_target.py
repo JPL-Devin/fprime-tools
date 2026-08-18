@@ -193,13 +193,30 @@ def test_composite_target_pass_handler():
     assert composite.pass_handler() == "handler1,handler3"
 
 
-def test_coverage_target_registered_gcovr_only():
-    """Test that the coverage targets run gcovr only (no test execution)"""
-    import fprime.fbuild.target_definitions  # noqa: F401
-    from fprime.fbuild.gcovr import CoverageTarget, Gcovr
+def test_gcovr_existing_skips_test_run(mock_builder):
+    """Test that --existing on check --coverage runs gcovr only (no test execution)"""
+    from fprime.fbuild.gcovr import Gcovr, GcovrTarget
 
-    for flags in [set(), {"all"}, {"ut"}, {"ut", "all"}]:
-        target = Target.get_target("coverage", flags)
-        assert isinstance(target, CoverageTarget)
-        assert len(target.targets) == 1
-        assert isinstance(target.targets[0], Gcovr)
+    target = GcovrTarget(
+        mnemonic="check",
+        desc="",
+        scope=TargetScope.LOCAL,
+        flags={"coverage"},
+        build_target_enumerators=[MagicMock(), MagicMock()],
+    )
+    assert "--existing" in dict(target.option_args())
+
+    gcovr_child = [child for child in target.targets if isinstance(child, Gcovr)][0]
+    check_child = [child for child in target.targets if not isinstance(child, Gcovr)][0]
+    gcovr_child.execute = MagicMock()
+    check_child.execute = MagicMock()
+
+    options = {"--existing": True}
+    target.execute(mock_builder, Path("."), ({}, [], options))
+    gcovr_child.execute.assert_called_once()
+    check_child.execute.assert_not_called()
+
+    gcovr_child.execute.reset_mock()
+    target.execute(mock_builder, Path("."), ({}, [], {"--existing": False}))
+    gcovr_child.execute.assert_called_once()
+    check_child.execute.assert_called_once()
