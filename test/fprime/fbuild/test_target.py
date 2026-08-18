@@ -191,3 +191,15 @@ def test_composite_target_pass_handler():
         [child1, child2, child3], "composite", "", TargetScope.LOCAL
     )
     assert composite.pass_handler() == "handler1,handler3"
+
+
+def test_coverage_target_registered_gcovr_only():
+    """Test that the coverage targets run gcovr only (no test execution)"""
+    import fprime.fbuild.target_definitions  # noqa: F401
+    from fprime.fbuild.gcovr import CoverageTarget, Gcovr
+
+    for flags in [set(), {"all"}, {"ut"}, {"ut", "all"}]:
+        target = Target.get_target("coverage", flags)
+        assert isinstance(target, CoverageTarget)
+        assert len(target.targets) == 1
+        assert isinstance(target.targets[0], Gcovr)

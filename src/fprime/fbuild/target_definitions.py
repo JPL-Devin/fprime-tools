@@ -5,7 +5,7 @@ as such, each target need only be instantiated but need not be assigned to anyth
 
 """
 
-from .gcovr import GcovrTarget
+from .gcovr import CoverageTarget, GcovrTarget
 from .check import CheckTarget
 from fprime.fbuild.check import CheckTarget
 from .enumerator import (
@@ -193,6 +193,44 @@ Target.register_target(
             SpecificBuildTargetEnumerator(["all"]),
             SpecificBuildTargetEnumerator(["all"]),
         ],
+    )
+)
+
+#### Coverage-only (gcovr from existing coverage data, no test run) ####
+Target.register_target(
+    CoverageTarget(
+        mnemonic="coverage",
+        desc="Calculate coverage for the current directory from existing coverage data (no test run)",
+        scope=TargetScope.LOCAL,
+    )
+)
+
+Target.register_target(
+    CoverageTarget(
+        mnemonic="coverage",
+        desc="Calculate coverage for the whole project from existing coverage data (no test run)",
+        scope=TargetScope.GLOBAL,
+        flags={"all"},
+    )
+)
+
+Target.register_target(
+    CoverageTarget(
+        mnemonic="coverage",
+        desc="Calculate coverage for the current directory from existing coverage data (unit test build, no test run)",
+        scope=TargetScope.LOCAL,
+        flags={"ut"},
+        build_type=BuildType.BUILD_TESTING,
+    )
+)
+
+Target.register_target(
+    CoverageTarget(
+        mnemonic="coverage",
+        desc="Calculate coverage for the whole project from existing coverage data (unit test build, no test run)",
+        scope=TargetScope.GLOBAL,
+        flags={"ut", "all"},
+        build_type=BuildType.BUILD_TESTING,
     )
 )
 
