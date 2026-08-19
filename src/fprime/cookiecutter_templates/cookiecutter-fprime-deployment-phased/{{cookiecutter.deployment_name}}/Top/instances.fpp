@@ -33,11 +33,10 @@ module {{cookiecutter.deployment_namespace}} {
     priority 43 \
     {
         phase Fpp.ToCpp.Phases.configObjects """
-        U32 context[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
+        Svc::ActiveRateGroup::ContextArray context(0);
         """
         phase Fpp.ToCpp.Phases.configComponents """
-        rateGroup_1Hz.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup_1Hz::context,
-            FW_NUM_ARRAY_ELEMENTS(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup_1Hz::context));
+        rateGroup_1Hz.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup_1Hz::context);
         """
     }
   
@@ -48,11 +47,10 @@ module {{cookiecutter.deployment_namespace}} {
     priority 42 \
     {
         phase Fpp.ToCpp.Phases.configObjects """
-        U32 context[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
+        Svc::ActiveRateGroup::ContextArray context(0);
         """
         phase Fpp.ToCpp.Phases.configComponents """
-        rateGroup_0_5Hz.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup_0_5Hz::context,
-            FW_NUM_ARRAY_ELEMENTS(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup_0_5Hz::context));
+        rateGroup_0_5Hz.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup_0_5Hz::context);
         """
     }
 
@@ -63,11 +61,10 @@ module {{cookiecutter.deployment_namespace}} {
     priority 41 \
     {
         phase Fpp.ToCpp.Phases.configObjects """
-        U32 context[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {};
+        Svc::ActiveRateGroup::ContextArray context(0);
         """
         phase Fpp.ToCpp.Phases.configComponents """
-        rateGroup_0_25Hz.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup_0_25Hz::context,
-            FW_NUM_ARRAY_ELEMENTS(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup_0_25Hz::context));
+        rateGroup_0_25Hz.configure(ConfigObjects::{{cookiecutter.deployment_namespace}}_rateGroup_0_25Hz::context);
         """
     }
 
