@@ -202,17 +202,12 @@ def add_target_parser(
                 nargs=1,
                 help=f"{target.desc}",
             )
-        elif flag == "recursive":
-            parser.add_argument(
-                "-R",
-                "--recursive",
-                action="store_true",
-                default=False,
-                help=f"{target.desc}{extra_help}",
-            )
         else:
+            flag_names = (f"--{flag}",)
+            if flag == "recursive":
+                flag_names = ("-R", "--recursive")
             parser.add_argument(
-                f"--{flag}",
+                *flag_names,
                 action="store_true",
                 default=False,
                 help=f"{target.desc}{extra_help}",
