@@ -20,7 +20,11 @@ def confirm(msg):
 
 
 def replace_contents(filename, what, replacement, count=1):
-    """Replace the first instance of what with replacement in filename"""
+    """Replace the first instance of what with replacement in filename
+
+    Deprecated: unused within fprime-tools and kept only for external callers;
+    it may be removed in a future major release.
+    """
     changelog = Path(filename).read_text()
     with open(filename, "w") as fh:
         new_file = changelog.replace(what, replacement, count)

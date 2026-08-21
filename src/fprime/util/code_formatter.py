@@ -5,14 +5,16 @@ Wrapper for clang-format utility.
 @author thomas-bc
 """
 
-import re
 import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import TYPE_CHECKING, Dict, List, Tuple
 
 from fprime.fbuild.target import ExecutableAction, TargetScope
+
+if TYPE_CHECKING:
+    from fprime.fbuild.builder import Build
 
 # clang-format will try to format everything it is given - restrict for the time being
 ALLOWED_EXTENSIONS = [
@@ -110,7 +112,6 @@ class ClangFormatter(ExecutableAction):
                 "Override location with --pass-through --style=file:<path>."
             )
             return 1
-        # Backup files unless --no-backup is requested or running only a --check
         if self.backup and not self.check:
             for file in self._files_to_format:
                 shutil.copy2(file, file.parent / f"{file.stem}.bak{file.suffix}")
@@ -118,7 +119,7 @@ class ClangFormatter(ExecutableAction):
         clang_args = [
             self.executable,
             "-i",
-            f"--style=file",
+            "--style=file",
             *(["--verbose"] if not self.quiet else []),
             *(["--dry-run", "--Werror"] if self.check else []),
             *pass_through,

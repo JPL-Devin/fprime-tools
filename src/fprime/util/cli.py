@@ -320,7 +320,6 @@ def validate(parsed, unknown):
         unknown = [arg for arg in unknown if not CMAKE_REG.match(arg)]
     # Build type only for generate, jobs only for non-generate
     elif parsed.command in [target.mnemonic for target in Target.get_all_targets()]:
-        parsed.settings = None  # Force to load from cache if possible
         if parsed.jobs is not None and parsed.jobs >= 1:
             make_args["--jobs"] = parsed.jobs
     elif parsed.command == "new" and not parsed.new_deployment and parsed.phased:
