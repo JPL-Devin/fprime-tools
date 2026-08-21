@@ -361,11 +361,7 @@ class CMakeHandler:
             stdout, _ = self._run_cmake(
                 run_args, write_override=True, print_output=False
             )
-            self.cached_help_targets.extend(
-                self._parse_help_targets(
-                    stdout, self._read_cache(build_dir).get("CMAKE_GENERATOR", "")
-                )
-            )
+            self.cached_help_targets.extend(self._parse_help_targets(stdout))
 
         prefix = self.get_cmake_module(path, build_dir)
         return [
@@ -375,28 +371,30 @@ class CMakeHandler:
         ]
 
     @staticmethod
-    def _parse_help_targets(stdout, generator):
-        """Parse target names out of `help` target output for the given generator
+    def _parse_help_targets(stdout):
+        """Parse target names out of `help` target output
 
-        The help target lists all targets but has a different output format for ninja and make.
+        The help target lists all targets but has a different output format for ninja
+        ("<target>: phony") and make ("... <target>"); the format is detected from the
+        output itself so empty output yields an empty list.
 
         Args:
             stdout: lines of output (keepends) from the help target
-            generator: value of the CMAKE_GENERATOR cache variable
 
         Returns:
             list of target names
         """
-        if "Makefile" not in generator:
-            # Ninja output
-            return [
-                line.replace(": phony", "").strip()
-                for line in stdout
-                if line.rstrip("\n").endswith(": phony")
-            ]
         # Makefile output
-        return [
+        make_targets = [
             line.replace("...", "").strip() for line in stdout if line.startswith("...")
+        ]
+        if make_targets:
+            return make_targets
+        # Ninja output
+        return [
+            line.replace(": phony", "").strip()
+            for line in stdout
+            if line.rstrip("\n").endswith(": phony")
         ]
 
     def is_target_supported(self, build_dir: str, target: str):

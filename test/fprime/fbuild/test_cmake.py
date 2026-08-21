@@ -595,7 +595,7 @@ def test_parse_help_targets_ninja():
         "Svc_CmdDispatcher_check: phony\n",
         "some_object.o: CXX_COMPILER\n",
     ]
-    assert CMakeHandler._parse_help_targets(stdout, "Ninja") == [
+    assert CMakeHandler._parse_help_targets(stdout) == [
         "all",
         "Svc_CmdDispatcher",
         "Svc_CmdDispatcher_check",
@@ -611,7 +611,7 @@ def test_parse_help_targets_make():
         "... Svc_CmdDispatcher\n",
         "... Svc_CmdDispatcher_check\n",
     ]
-    assert CMakeHandler._parse_help_targets(stdout, "Unix Makefiles") == [
+    assert CMakeHandler._parse_help_targets(stdout) == [
         "all (the default if no target is provided)",
         "clean",
         "Svc_CmdDispatcher",
@@ -621,8 +621,7 @@ def test_parse_help_targets_make():
 
 def test_parse_help_targets_empty_output():
     """Tests that empty help output parses without error"""
-    assert CMakeHandler._parse_help_targets([], "Ninja") == []
-    assert CMakeHandler._parse_help_targets([], "Unix Makefiles") == []
+    assert CMakeHandler._parse_help_targets([]) == []
 
 
 def test_available_targets_prefix_strip(cmake_handler):
