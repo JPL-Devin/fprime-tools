@@ -205,7 +205,10 @@ class Build:
         """
         if isinstance(setting, str):
             return self.settings.get(setting, default)
-        return [self.get_settings(req, back) for req, back in zip(setting, default)]
+        return [
+            self.get_settings(req, back)
+            for req, back in zip(setting, default, strict=True)
+        ]
 
     def find_hashed_file(self, hash_value: int) -> List[str]:
         """Retrieves the file associated with a hash

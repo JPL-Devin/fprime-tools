@@ -41,7 +41,6 @@ class Check(EnumeratedAction):
         2. There are test targets to run
         """
         if not bool(shutil.which(self.EXECUTABLE)):
-            print("[ERROR] CTest not found", file=sys.stderr)
             return False
         context, _ = context_with_path
         return len(context) > 0
@@ -53,6 +52,8 @@ class Check(EnumeratedAction):
         args: Tuple[Dict[str, str], List[str], Dict[str, bool]],
     ):
         """Execute this target"""
+        if not bool(shutil.which(self.EXECUTABLE)):
+            print("[ERROR] CTest not found", file=sys.stderr)
         context, context_path = context_with_path
         build_cache_path = (
             builder.get_build_cache_path(context_path)
