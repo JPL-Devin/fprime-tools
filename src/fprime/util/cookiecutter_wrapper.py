@@ -3,7 +3,7 @@
 import os
 import sys
 
-from typing import TYPE_CHECKING
+from typing import Optional, Tuple, TYPE_CHECKING
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -85,6 +85,84 @@ def find_nearest_cmake_file(component_dir: Path, cmake_root: Path, proj_root: Pa
     return None
 
 
+def _project_root(build: Build) -> Path:
+    """Project root setting, falling back to the cmake root"""
+    return build.get_settings("project_root", None) or build.cmake_root
+
+
+def _resolve_template_source(
+    build: Build, setting_key: str, builtin_template: str, builtin_message: str
+) -> str:
+    """Resolve a cookiecutter template source: the settings.ini override or the builtin template
+
+    Args:
+        build: build object to read settings from
+        setting_key: settings.ini key holding a template override
+        builtin_template: name of the builtin template directory
+        builtin_message: message printed when the builtin template is used
+
+    Returns:
+        cookiecutter template source
+    """
+    source = build.get_settings(setting_key, None)
+    if source is not None and source != "default":
+        print(f"[INFO] Cookiecutter source: {source}")
+        return source
+    print(builtin_message)
+    return os.path.dirname(__file__) + f"/../cookiecutter_templates/{builtin_template}"
+
+
+def _instantiate_template(
+    build: Build,
+    source: str,
+    kind: str,
+    extra_context: dict = None,
+    register: bool = True,
+    **cookiecutter_kwargs,
+) -> Tuple[int, Optional[Path]]:
+    """Run cookiecutter for a template source and register the result with the build system
+
+    Args:
+        build: build object used for build-system registration
+        source: cookiecutter template source
+        kind: object kind used in error messages (e.g. "component")
+        extra_context: extra context handed to cookiecutter
+        register: register the generated path with CMake. Default: True
+        cookiecutter_kwargs: remaining keyword arguments handed to cookiecutter
+
+    Returns:
+        Tuple of (return code, generated path or None on failure)
+    """
+    try:
+        gen_path = Path(
+            cookiecutter(
+                source, extra_context=extra_context or {}, **cookiecutter_kwargs
+            )
+        ).resolve()
+        if register:
+            register_with_cmake(
+                gen_path, Path(_project_root(build)).resolve(), build.cmake_root
+            )
+        return 0, gen_path
+    except OutputDirExistsException as out_directory_error:
+        print(
+            f"{out_directory_error}. Use --overwrite to overwrite (will not delete non-generated files).",
+            file=sys.stderr,
+        )
+    except UnknownRepoType:
+        print(
+            f"[ERROR] {source} is not a valid cookiecutter template. Please check the source and try again.",
+            file=sys.stderr,
+        )
+    except (FileNotFoundError, PermissionError) as error:
+        print(f"[ERROR] {error}. Failed to write to the directory.", file=sys.stderr)
+    except OSError as ose:
+        print(f"[ERROR] {ose}", file=sys.stderr)
+    except CMakeExecutionException as exc:
+        print(f"[ERROR] Failed to create {kind}. {exc}", file=sys.stderr)
+    return 1, None
+
+
 def new_component(build: Build, parsed_args: "argparse.Namespace"):
     """Uses cookiecutter for making new components"""
 
@@ -98,62 +176,39 @@ def new_component(build: Build, parsed_args: "argparse.Namespace"):
         )
         return 1
 
-    try:
-        proj_root = build.get_settings("project_root", None) or build.cmake_root
+    source = _resolve_template_source(
+        build,
+        "component_cookiecutter",
+        "cookiecutter-fprime-component",
+        "[INFO] Cookiecutter source: using builtin",
+    )
 
-        # Checks if component_cookiecutter is set in settings.ini file, else uses local component_cookiecutter template as default
-        if (
-            build.get_settings("component_cookiecutter", None) is not None
-            and build.get_settings("component_cookiecutter", None) != "default"
-        ):
-            source = build.get_settings("component_cookiecutter", None)
-            print(f"[INFO] Cookiecutter source: {source}")
-        else:
-            source = (
-                os.path.dirname(__file__)
-                + "/../cookiecutter_templates/cookiecutter-fprime-component"
-            )
-            print("[INFO] Cookiecutter source: using builtin")
-
-        # Use current working directory name as default namespace, unless at project root
-        extra_context = {}
-        if not proj_root.samefile(Path.cwd()):
-            cwd = Path.cwd()
-            # If in default Components directory, use parent directory name, which should be the top level namespace directory
-            extra_context["component_namespace"] = (
-                cwd.parent.name if cwd.name == "Components" else cwd.name
-            )
-
-        gen_path = Path(cookiecutter(source, extra_context=extra_context)).resolve()
-
-        # Attempt to register to CMakeLists.txt or project.cmake
-        register_with_cmake(
-            gen_path,
-            Path(proj_root).resolve(),
-            build.cmake_root,
+    # Use current working directory name as default namespace, unless at project root
+    extra_context = {}
+    if not _project_root(build).samefile(Path.cwd()):
+        cwd = Path.cwd()
+        # If in default Components directory, use parent directory name, which should be the top level namespace directory
+        extra_context["component_namespace"] = (
+            cwd.parent.name if cwd.name == "Components" else cwd.name
         )
-        # Attempt implementation
-        if not run_impl(build, gen_path):
-            print(
-                f"[INFO] Did not generate implementations for {gen_path}. Please do so manually."
-            )
-            return 0
 
-        print("[INFO] Created new component and generated initial implementations.")
-        return 0
-    except OutputDirExistsException as out_directory_error:
-        print(f"{out_directory_error}", file=sys.stderr)
-    except CMakeExecutionException as exc:
-        print(f"[ERROR] Failed to create component. {exc}", file=sys.stderr)
-    except FileNotFoundError as e:
+    code, gen_path = _instantiate_template(
+        build,
+        source,
+        "component",
+        extra_context=extra_context,
+        overwrite_if_exists=parsed_args.overwrite,
+    )
+    if code != 0:
+        return code
+    # Attempt implementation
+    if not run_impl(build, gen_path):
         print(
-            f"{e}. Permission denied to write to the directory.",
-            file=sys.stderr,
+            f"[INFO] Did not generate implementations for {gen_path}. Please do so manually."
         )
-        return 1
-    except OSError as ose:
-        print(f"[ERROR] {ose}")
-    return 1
+        return 0
+    print("[INFO] Created new component and generated initial implementations.")
+    return 0
 
 
 def new_deployment(build: Build, parsed_args: "argparse.Namespace"):
@@ -165,25 +220,19 @@ def new_deployment(build: Build, parsed_args: "argparse.Namespace"):
         )
         return 1
 
-    # Checks if deployment_cookiecutter is set in settings.ini file, else uses local install template as default
-    if (
-        build.get_settings("deployment_cookiecutter", None) is not None
-        and build.get_settings("deployment_cookiecutter", None) != "default"
-    ):
-        source = build.get_settings("deployment_cookiecutter", None)
-        print(f"[INFO] Cookiecutter source: {source}")
-    elif parsed_args.phased:
-        source = (
-            os.path.dirname(__file__)
-            + "/../cookiecutter_templates/cookiecutter-fprime-deployment-phased"
+    if parsed_args.phased:
+        builtin_template = "cookiecutter-fprime-deployment-phased"
+        builtin_message = (
+            "[INFO] Cookiecutter: using builtin phased template for new deployment"
         )
-        print("[INFO] Cookiecutter: using builtin phased template for new deployment")
     else:
-        source = (
-            os.path.dirname(__file__)
-            + "/../cookiecutter_templates/cookiecutter-fprime-deployment"
+        builtin_template = "cookiecutter-fprime-deployment"
+        builtin_message = (
+            "[INFO] Cookiecutter: using builtin template for new deployment"
         )
-        print("[INFO] Cookiecutter: using builtin template for new deployment")
+    source = _resolve_template_source(
+        build, "deployment_cookiecutter", builtin_template, builtin_message
+    )
 
     # Extra contextual information for cookiecutter
     extra_context = {}
@@ -191,124 +240,55 @@ def new_deployment(build: Build, parsed_args: "argparse.Namespace"):
     if rel_path:
         extra_context["__include_path_prefix"] = f"{rel_path}/"
     # Use current working directory name as default namespace, unless at project root
-    project_root: Path = build.get_settings("project_root", None) or build.cmake_root
-    if not project_root.samefile(Path.cwd()):
+    if not _project_root(build).samefile(Path.cwd()):
         extra_context["deployment_namespace"] = Path.cwd().name
 
-    try:
-        gen_path = Path(
-            cookiecutter(
-                source,
-                extra_context=extra_context,
-                overwrite_if_exists=parsed_args.overwrite,
-            )
-        ).resolve()
-        # Attempt to register to CMakeLists.txt or project.cmake
-        register_with_cmake(
-            gen_path,
-            (build.get_settings("project_root", None) or build.cmake_root).resolve(),
-            build.cmake_root,
-        )
-
-    except OutputDirExistsException as out_directory_error:
-        print(
-            f"{out_directory_error}. Use --overwrite to overwrite (will not delete non-generated files).",
-            file=sys.stderr,
-        )
-        return 1
-    except FileNotFoundError as e:
-        print(
-            f"{e}. Permission denied to write to the directory.",
-            file=sys.stderr,
-        )
-        return 1
+    code, gen_path = _instantiate_template(
+        build,
+        source,
+        "deployment",
+        extra_context=extra_context,
+        overwrite_if_exists=parsed_args.overwrite,
+    )
+    if code != 0:
+        return code
     print(f"[INFO] New deployment successfully created: {gen_path}")
     return 0
 
 
 def new_subtopology(build: Build, parsed_args: "argparse.Namespace"):
     """Creates a new subtopology using cookiecutter"""
-    # Checks if subtopology_cookiecutter is set in settings.ini file, else uses local install template as default
-    if (
-        build.get_settings("subtopology_cookiecutter", None) is not None
-        and build.get_settings("subtopology_cookiecutter", None) != "default"
-    ):
-        source = build.get_settings("subtopology_cookiecutter", None)
-        print(f"[INFO] Cookiecutter source: {source}")
-    else:
-        source = (
-            os.path.dirname(__file__)
-            + "/../cookiecutter_templates/cookiecutter-fprime-subtopology"
-        )
-        print("[INFO] Cookiecutter: using builtin template for new subtopology")
-    try:
-        gen_path = Path(
-            cookiecutter(source, overwrite_if_exists=parsed_args.overwrite)
-        ).resolve()
-        # Attempt to register to CMakeLists.txt or project.cmake
-        register_with_cmake(
-            gen_path,
-            (build.get_settings("project_root", None) or build.cmake_root).resolve(),
-            build.cmake_root,
-        )
-
-    except OutputDirExistsException as out_directory_error:
-        print(
-            f"{out_directory_error}. Use --overwrite to overwrite (will not delete non-generated files).",
-            file=sys.stderr,
-        )
-        return 1
-    except FileNotFoundError as e:
-        print(
-            f"{e}. Permission denied to write to the directory.",
-            file=sys.stderr,
-        )
-        return 1
+    source = _resolve_template_source(
+        build,
+        "subtopology_cookiecutter",
+        "cookiecutter-fprime-subtopology",
+        "[INFO] Cookiecutter: using builtin template for new subtopology",
+    )
+    code, gen_path = _instantiate_template(
+        build, source, "subtopology", overwrite_if_exists=parsed_args.overwrite
+    )
+    if code != 0:
+        return code
     print(f"[INFO] New subtopology successfully created: {gen_path}")
     return 0
 
 
 def new_module(build: Build, parsed_args: "argparse.Namespace", source=None):
-    """Creates a new F' project"""
+    """Creates a new module using cookiecutter"""
 
     if source is None:
         source = (
             os.path.dirname(__file__)
             + "/../cookiecutter_templates/cookiecutter-fprime-module"
         )
-    try:
-        gen_path = Path(
-            cookiecutter(
-                source,
-                overwrite_if_exists=parsed_args.overwrite,
-                output_dir=parsed_args.path,
-            )
-        ).resolve()
-        # Attempt to register to CMakeLists.txt or project.cmake
-        register_with_cmake(
-            gen_path,
-            (build.get_settings("project_root", None) or build.cmake_root).resolve(),
-            build.cmake_root,
-        )
-    except OutputDirExistsException as out_directory_error:
-        print(
-            f"{out_directory_error}. Use --overwrite to overwrite (will not delete non-generated files).",
-            file=sys.stderr,
-        )
-        return 1
-    except FileNotFoundError as e:
-        print(
-            f"{e}. Permission denied to write to the directory.",
-            file=sys.stderr,
-        )
-        return 1
-    except UnknownRepoType:
-        print(
-            f"[ERROR] {source} is not a valid cookiecutter template. Please check the source and try again.",
-            file=sys.stderr,
-        )
-        return 1
-    return 0
+    code, _ = _instantiate_template(
+        build,
+        source,
+        "module",
+        overwrite_if_exists=parsed_args.overwrite,
+        output_dir=parsed_args.path,
+    )
+    return code
 
 
 def new_rule_based_testing(build: Build, parsed_args: "argparse.Namespace"):
@@ -330,28 +310,22 @@ def new_rule_based_testing(build: Build, parsed_args: "argparse.Namespace"):
     extra_context = {}
     rel_path = get_directory_path_relative_to_root(build)
     extra_context["__include_path_prefix"] = f"{rel_path}" if rel_path else ""
-    cwd = Path.cwd()
 
     extra_context["_component_name"] = cwd.name
     extra_context["_component_namespace"] = (
         cwd.parent.parent.name if cwd.parent.name == "Components" else cwd.name
     )
-    try:
-        print(extra_context)
-        gen_path = Path(
-            cookiecutter(
-                source,
-                extra_context=extra_context,
-                overwrite_if_exists=True,  # needed to add to existing test/ut directory
-                skip_if_file_exists=True,  # safety
-            )
-        ).resolve()
-    except OutputDirExistsException as out_directory_error:
-        print(
-            f"{out_directory_error}. Use --overwrite to overwrite (will not delete non-generated files).",
-            file=sys.stderr,
-        )
-        return 1
+    code, gen_path = _instantiate_template(
+        build,
+        source,
+        "rule-based test scaffold",
+        extra_context=extra_context,
+        register=False,
+        overwrite_if_exists=True,  # needed to add to existing test/ut directory
+        skip_if_file_exists=True,  # safety
+    )
+    if code != 0:
+        return code
     print(
         f"[INFO] Rule-based test scaffold successfully created in {gen_path}/test/ut/ \n"
         "[INFO] For next steps, refer to the F Prime How-To Guide on Rule-Based Testing"
@@ -404,6 +378,8 @@ def add_to_cmake(list_file: Path, comp_path: Path, project_root: Path = None):
 
 
 def is_valid_name(word: str):
+    if not isinstance(word, str):
+        raise ValueError("Incorrect usage of is_valid_name")
     invalid_characters = [
         "#",
         "%",
@@ -430,8 +406,6 @@ def is_valid_name(word: str):
         "-",
     ]
     for char in invalid_characters:
-        if isinstance(word, str) and char in word:
+        if char in word:
             return char
-        if not isinstance(word, str):
-            raise ValueError("Incorrect usage of is_valid_name")
     return "valid"
