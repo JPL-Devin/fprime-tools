@@ -9,6 +9,7 @@ import argparse
 import os
 import re
 import sys
+import traceback
 from pathlib import Path
 from typing import Callable, Dict
 
@@ -51,8 +52,13 @@ def utility_entry(args):
             file=sys.stderr,
         )
     except UnableToDetectProjectException:
-        print(f"[ERROR] Could not detect project directory for: {parsed.path}")
+        print(
+            f"[ERROR] Could not detect project directory for: {parsed.path}",
+            file=sys.stderr,
+        )
     except Exception as exc:
+        if getattr(parsed, "verbose", False):
+            traceback.print_exc()
         print(f"[ERROR] {exc.__class__.__name__}: {exc}", file=sys.stderr)
     return 1
 
