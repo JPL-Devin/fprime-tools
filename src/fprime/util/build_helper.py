@@ -48,28 +48,30 @@ def validate_tools_from_requirements(build: Build):
         build.settings.get("project_root", None),
         build.settings.get("framework_path", None),
     ]
-    possibilities = [
+    candidates = [
         Path(possible) / "requirements.txt"
         for possible in possibilities
         if possible is not None
     ]
-    possibilities = [possible for possible in possibilities if possible.exists()]
-    # Skip tools check, as not requirements.txt found
+    possibilities = [possible for possible in candidates if possible.exists()]
+    # Skip tools check, as no requirements.txt found
     if not possibilities:
         print(
-            f"[WARNING] Could not find 'requirements.txt' in: {possibilities}. Will not check tool versions."
+            f"[WARNING] Could not find 'requirements.txt' in: {[str(candidate) for candidate in candidates]}. Will not check tool versions."
         )
         return
     # Now check each required tool for fprime
     for tool in FPRIME_PIP_PACKAGES:
+        messages = []
         for possible in possibilities:
             try:
                 package_version_check(tool, possible)
                 break
             except (OSError, VersionException) as exc:
-                message = f"[WARNING] {exc}"
+                messages.append(f"[WARNING] {exc}")
         else:
-            print(message)
+            for message in messages:
+                print(message)
 
 
 def _parse_gitmodules(gitmodules_path: Path):

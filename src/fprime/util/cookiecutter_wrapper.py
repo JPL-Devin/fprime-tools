@@ -1,6 +1,5 @@
 """Cookie cutter wrapper used to template out components"""
 
-import glob
 import os
 import sys
 
