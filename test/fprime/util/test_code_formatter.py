@@ -1,5 +1,5 @@
 """
-Tests for fprime.util.code_formatter
+Tests for fprime.tools.clang_format
 """
 
 from pathlib import Path
@@ -8,7 +8,7 @@ import shutil
 from unittest.mock import MagicMock
 
 import pytest
-from fprime.util.code_formatter import ClangFormatter
+from fprime.tools.clang_format import ClangFormatter
 
 
 def test_init():

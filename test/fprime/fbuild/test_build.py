@@ -12,9 +12,9 @@ import pathlib
 
 from unittest.mock import patch
 
-import fprime.fbuild.builder
-import fprime.fbuild.cmake
-import fprime.fbuild.types
+import fprime.build.builder
+import fprime.build.cmake
+import fprime.build.types
 import pytest
 
 
@@ -24,7 +24,7 @@ def get_cmake_builder():
     Returns:
         CMakeBuilder for testing
     """
-    return fprime.fbuild.cmake.CMakeHandler()
+    return fprime.build.cmake.CMakeHandler()
 
 
 def get_data_dir():
@@ -34,7 +34,7 @@ def get_data_dir():
 
     :return:
     """
-    if type(get_cmake_builder()) is fprime.fbuild.cmake.CMakeHandler:
+    if type(get_cmake_builder()) is fprime.build.cmake.CMakeHandler:
         return os.path.join(os.path.dirname(__file__), "cmake-data")
     msg = f"Test data directory not setup for {type(get_cmake_builder())} builder class"
     raise Exception(msg)
@@ -46,8 +46,8 @@ def test_hash_finder():
     """
     local = pathlib.Path(os.path.dirname(__file__))
     dep_dir = local / "cmake-data" / "testbuild"
-    builder = fprime.fbuild.builder.Build(
-        fprime.fbuild.builder.BuildType.BUILD_NORMAL, dep_dir
+    builder = fprime.build.builder.Build(
+        fprime.build.builder.BuildType.BUILD_NORMAL, dep_dir
     )
     builder.load(
         local, build_dir=dep_dir / "build-fprime-automatic-native", skip_validation=True
@@ -76,7 +76,7 @@ def test_get_fprime_configuration():
     """
     Tests the given fprime configuration fetcher. Required for other portion of the system.
     """
-    configs = fprime.fbuild.cmake.CMakeHandler.CMAKE_LOCATION_FIELDS
+    configs = fprime.build.cmake.CMakeHandler.CMAKE_LOCATION_FIELDS
     test_data = {
         "grand-unified": (
             "/home/user11/fprime/Ref/..",
@@ -171,7 +171,7 @@ def test_get_include_info():
         # Test all path, truth pairs
         for path, truth in test_data.get(key):
             if truth is None:
-                with pytest.raises(fprime.fbuild.cmake.CMakeOrphanException):
+                with pytest.raises(fprime.build.cmake.CMakeOrphanException):
                     value = get_cmake_builder().get_include_info(path, build_dir)
             else:
                 value = get_cmake_builder().get_include_info(path, build_dir)
@@ -194,11 +194,11 @@ def test_find_nearest_parent_project():
         path = test_dir / path
         if truth is not None:
             truth = test_dir / truth
-            value = fprime.fbuild.builder.Build.find_nearest_parent_project(path)
+            value = fprime.build.builder.Build.find_nearest_parent_project(path)
             assert value == truth
         else:
-            with pytest.raises(fprime.fbuild.builder.UnableToDetectProjectException):
-                fprime.fbuild.builder.Build.find_nearest_parent_project(path)
+            with pytest.raises(fprime.build.builder.UnableToDetectProjectException):
+                fprime.build.builder.Build.find_nearest_parent_project(path)
 
 
 def _make_build(tmp_path, locations_content=None):
@@ -210,9 +210,9 @@ def _make_build(tmp_path, locations_content=None):
     """
     if locations_content is not None:
         (tmp_path / "fprime-binary-locations.fprime-util").write_text(locations_content)
-    with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
-        build = fprime.fbuild.builder.Build(
-            fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    with patch.object(fprime.build.cmake.CMakeHandler, "__init__", lambda self: None):
+        build = fprime.build.builder.Build(
+            fprime.build.builder.BuildType.BUILD_NORMAL, tmp_path
         )
     build.build_dir = tmp_path
     build._build_cache_locations = build._load_build_cache_locations()
@@ -245,19 +245,19 @@ def test_get_build_cache_locations_with_file(tmp_path):
 
 def test_get_build_cache_locations_empty_file(tmp_path):
     """An empty locations file is a corrupt build cache and should raise."""
-    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException):
+    with pytest.raises(fprime.build.types.InvalidBuildCacheException):
         _make_build(tmp_path, locations_content="\n")
 
 
 def test_get_build_cache_locations_no_valid_paths(tmp_path):
     """A file listing only non-existent (but in-cache) relative paths should raise."""
-    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException):
+    with pytest.raises(fprime.build.types.InvalidBuildCacheException):
         _make_build(tmp_path, locations_content="does-not-exist\n")
 
 
 def test_get_build_cache_locations_comments_only(tmp_path):
     """A file with only comments and blank lines should raise."""
-    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException):
+    with pytest.raises(fprime.build.types.InvalidBuildCacheException):
         _make_build(tmp_path, locations_content="# just a comment\n\n  \n")
 
 
@@ -280,7 +280,7 @@ def test_get_build_cache_locations_mixed_valid_invalid(tmp_path):
 
 def test_get_build_cache_locations_outside_build_dir(tmp_path):
     """A path resolving outside the build cache should raise (security)."""
-    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException, match="outside"):
+    with pytest.raises(fprime.build.types.InvalidBuildCacheException, match="outside"):
         _make_build(tmp_path, locations_content="../escape\n")
 
 
@@ -296,9 +296,9 @@ def _make_build_for_source_locations(tmp_path, source_content=None):
     """
     if source_content is not None:
         (tmp_path / "fprime-source-locations.fprime-util").write_text(source_content)
-    with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
-        build = fprime.fbuild.builder.Build(
-            fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    with patch.object(fprime.build.cmake.CMakeHandler, "__init__", lambda self: None):
+        build = fprime.build.builder.Build(
+            fprime.build.builder.BuildType.BUILD_NORMAL, tmp_path
         )
     build.build_dir = tmp_path
     build.settings = {
@@ -336,19 +336,19 @@ def test_get_source_locations_with_file(tmp_path):
 
 def test_get_source_locations_empty_file(tmp_path):
     """An empty source locations file should raise."""
-    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException):
+    with pytest.raises(fprime.build.types.InvalidBuildCacheException):
         _make_build_for_source_locations(tmp_path, source_content="\n")
 
 
 def test_get_source_locations_no_valid_paths(tmp_path):
     """A file listing only non-existent paths should raise."""
-    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException):
+    with pytest.raises(fprime.build.types.InvalidBuildCacheException):
         _make_build_for_source_locations(tmp_path, source_content="/nonexistent/path\n")
 
 
 def test_get_source_locations_comments_only(tmp_path):
     """A file with only comments and blank lines should raise."""
-    with pytest.raises(fprime.fbuild.types.InvalidBuildCacheException):
+    with pytest.raises(fprime.build.types.InvalidBuildCacheException):
         _make_build_for_source_locations(
             tmp_path, source_content="# just a comment\n\n  \n"
         )
@@ -399,8 +399,8 @@ def _make_build_with_cache(tmp_path, cache_content, settings_ini_content=None):
     (tmp_path / "CMakeCache.txt").write_text(cache_content)
     (tmp_path / ".fprime-build-dir").touch()
 
-    build = fprime.fbuild.builder.Build(
-        fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    build = fprime.build.builder.Build(
+        fprime.build.builder.BuildType.BUILD_NORMAL, tmp_path
     )
     build.load(build_dir=tmp_path)
     return build
@@ -460,11 +460,11 @@ def test_load_settings_from_cache_inconsistency_raises(tmp_path):
     (tmp_path / "CMakeCache.txt").write_text(cache)
     (tmp_path / ".fprime-build-dir").touch()
 
-    build = fprime.fbuild.builder.Build(
-        fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    build = fprime.build.builder.Build(
+        fprime.build.builder.BuildType.BUILD_NORMAL, tmp_path
     )
     with pytest.raises(
-        fprime.fbuild.types.InvalidBuildCacheException, match="generate -f"
+        fprime.build.types.InvalidBuildCacheException, match="generate -f"
     ):
         build.load(build_dir=tmp_path)
 
@@ -477,8 +477,8 @@ def test_load_settings_from_cache_no_error_when_consistent(tmp_path):
     (tmp_path / "CMakeCache.txt").write_text(cache)
     (tmp_path / ".fprime-build-dir").touch()
 
-    build = fprime.fbuild.builder.Build(
-        fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    build = fprime.build.builder.Build(
+        fprime.build.builder.BuildType.BUILD_NORMAL, tmp_path
     )
     build.load(build_dir=tmp_path)
 
@@ -496,8 +496,8 @@ def test_invent_does_not_load_from_cache(tmp_path):
         "FPRIME_FRAMEWORK_PATH:PATH=/should/not/appear\n"
     )
 
-    build = fprime.fbuild.builder.Build(
-        fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    build = fprime.build.builder.Build(
+        fprime.build.builder.BuildType.BUILD_NORMAL, tmp_path
     )
     # invent with force since the dir already exists
     build.invent(build_dir=build_dir, force=True)
@@ -514,9 +514,9 @@ def test_cli_preset_overrides_settings_ini(tmp_path):
         f"[fprime]\nframework_path = {fw_path}\n" f"preset: ini-preset\n"
     )
 
-    with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
-        build = fprime.fbuild.builder.Build(
-            fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    with patch.object(fprime.build.cmake.CMakeHandler, "__init__", lambda self: None):
+        build = fprime.build.builder.Build(
+            fprime.build.builder.BuildType.BUILD_NORMAL, tmp_path
         )
     build.invent(preset="cli-override")
 
@@ -533,9 +533,9 @@ def test_settings_ini_preset_used_when_no_cli_preset(tmp_path):
         f"[fprime]\nframework_path = {fw_path}\n" f"preset: ini-preset\n"
     )
 
-    with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
-        build = fprime.fbuild.builder.Build(
-            fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    with patch.object(fprime.build.cmake.CMakeHandler, "__init__", lambda self: None):
+        build = fprime.build.builder.Build(
+            fprime.build.builder.BuildType.BUILD_NORMAL, tmp_path
         )
     build.invent()
 
@@ -547,9 +547,9 @@ def test_no_preset_omits_suffix(tmp_path):
     """When no preset is set anywhere, build dir has no preset suffix."""
     _setup_fprime_project(tmp_path)
 
-    with patch.object(fprime.fbuild.cmake.CMakeHandler, "__init__", lambda self: None):
-        build = fprime.fbuild.builder.Build(
-            fprime.fbuild.builder.BuildType.BUILD_NORMAL, tmp_path
+    with patch.object(fprime.build.cmake.CMakeHandler, "__init__", lambda self: None):
+        build = fprime.build.builder.Build(
+            fprime.build.builder.BuildType.BUILD_NORMAL, tmp_path
         )
     build.invent()
 

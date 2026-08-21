@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from unittest.mock import MagicMock, patch
 
-from fprime.fbuild.builder import Build
+from fprime.build.builder import Build
 from fprime.util.file_util import get_directory_path_relative_to_root
 
 

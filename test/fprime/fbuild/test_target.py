@@ -1,5 +1,5 @@
 """
-Tests for fprime.fbuild.target
+Tests for fprime.build.targets.target
 """
 
 from pathlib import Path
@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from fprime.fbuild.target import (
+from fprime.build.targets.target import (
     Target,
     TargetScope,
     CompositeTarget,
@@ -15,7 +15,7 @@ from fprime.fbuild.target import (
     NoSuchTargetException,
     EnumeratedAction,
 )
-from fprime.fbuild.enumerator import BuildTargetEnumerator
+from fprime.build.targets.enumerator import BuildTargetEnumerator
 
 
 @pytest.fixture(autouse=True)
@@ -195,8 +195,8 @@ def test_composite_target_pass_handler():
 
 def test_check_coverage_existing_targets_gcovr_only():
     """Test that check --coverage --existing targets run gcovr only (no test execution)"""
-    import fprime.fbuild.target_definitions  # noqa: F401 registers targets
-    from fprime.fbuild.gcovr import ExistingCoverageTarget, Gcovr
+    import fprime.build.targets  # noqa: F401 registers targets
+    from fprime.build.targets.gcovr import ExistingCoverageTarget, Gcovr
 
     for flags in [
         {"coverage", "existing"},
