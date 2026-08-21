@@ -3,8 +3,19 @@ Tests for fprime.util.cookiecutter_wrapper
 """
 
 import pytest
+from unittest.mock import MagicMock, patch
 
-from fprime.util.cookiecutter_wrapper import find_nearest_cmake_file
+from cookiecutter.exceptions import OutputDirExistsException, UnknownRepoType
+
+from fprime.fbuild.cmake import CMakeExecutionException
+
+from fprime.util.cookiecutter_wrapper import (
+    find_nearest_cmake_file,
+    is_valid_name,
+    new_component,
+    new_module,
+    new_subtopology,
+)
 
 
 @pytest.fixture
@@ -50,3 +61,89 @@ def test_find_nearest_cmake_no_file(file_structure):
 
     found_path = find_nearest_cmake_file(component_subdir, deployment_dir, proj_root)
     assert found_path is None
+
+
+class _Args:
+    """Simple argparse.Namespace stand-in"""
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
+def _build_mock(tmp_path):
+    build = MagicMock()
+    build.get_settings.return_value = None
+    build.cmake_root = tmp_path
+    return build
+
+
+@patch("fprime.util.cookiecutter_wrapper.register_with_cmake")
+@patch("fprime.util.cookiecutter_wrapper.run_impl", return_value=True)
+@patch("fprime.util.cookiecutter_wrapper.check_path_is_within_fprime_module")
+@patch("fprime.util.cookiecutter_wrapper.cookiecutter")
+def test_new_component_honors_overwrite(
+    mock_cookiecutter, mock_check, mock_run_impl, mock_register, tmp_path, monkeypatch
+):
+    """Tests that new --component passes --overwrite through to cookiecutter"""
+    mock_check.return_value = False
+    mock_cookiecutter.return_value = str(tmp_path / "MyComponent")
+    monkeypatch.chdir(tmp_path)
+
+    assert new_component(_build_mock(tmp_path), _Args(force=False, overwrite=True)) == 0
+    assert mock_cookiecutter.call_args.kwargs["overwrite_if_exists"] is True
+
+
+@patch("fprime.util.cookiecutter_wrapper.cookiecutter")
+def test_new_module_reports_unknown_repo(mock_cookiecutter, tmp_path, capsys):
+    """Tests that an invalid template source returns an error for new --module"""
+    mock_cookiecutter.side_effect = UnknownRepoType()
+
+    result = new_module(
+        _build_mock(tmp_path),
+        _Args(overwrite=False, path=str(tmp_path)),
+        source="not-a-template",
+    )
+    assert result == 1
+    assert "not a valid cookiecutter template" in capsys.readouterr().err
+
+
+@patch("fprime.util.cookiecutter_wrapper.cookiecutter")
+def test_new_subtopology_output_dir_exists(mock_cookiecutter, tmp_path, capsys):
+    """Tests the existing-output-directory error path"""
+    mock_cookiecutter.side_effect = OutputDirExistsException("'X' already exists")
+
+    result = new_subtopology(_build_mock(tmp_path), _Args(overwrite=False))
+    assert result == 1
+    assert "Use --overwrite" in capsys.readouterr().err
+
+
+def test_is_valid_name():
+    """Tests name validation and its non-string error"""
+    assert is_valid_name("GoodName") == "valid"
+    assert is_valid_name("bad name") == " "
+    with pytest.raises(ValueError):
+        is_valid_name(None)
+
+
+@patch("fprime.util.cookiecutter_wrapper.register_with_cmake")
+@patch("fprime.util.cookiecutter_wrapper.run_impl")
+@patch("fprime.util.cookiecutter_wrapper.check_path_is_within_fprime_module")
+@patch("fprime.util.cookiecutter_wrapper.cookiecutter")
+def test_new_component_impl_failure_reported(
+    mock_cookiecutter,
+    mock_check,
+    mock_run_impl,
+    mock_register,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    """Tests that implementation-generation failures are reported, not raised"""
+    mock_check.return_value = False
+    mock_cookiecutter.return_value = str(tmp_path / "MyComponent")
+    mock_run_impl.side_effect = CMakeExecutionException("cmake failed", [], True)
+    monkeypatch.chdir(tmp_path)
+
+    result = new_component(_build_mock(tmp_path), _Args(force=False, overwrite=False))
+    assert result == 1
+    assert "Failed to create component" in capsys.readouterr().err
