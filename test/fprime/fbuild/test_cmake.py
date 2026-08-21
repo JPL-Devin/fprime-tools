@@ -574,19 +574,19 @@ MAKE_HELP_OUTPUT = [
 
 
 @patch("fprime.fbuild.cmake.CMakeHandler.get_cmake_module")
-@patch("fprime.fbuild.cmake.CMakeHandler._read_cache")
+@patch("fprime.fbuild.cmake.CMakeHandler._get_generator")
 @patch("fprime.fbuild.cmake.CMakeHandler._run_cmake")
 def get_available_targets(
     cmake_handler,
     generator,
     help_output,
     mock_run_cmake,
-    mock_read_cache,
+    mock_get_generator,
     mock_get_cmake_module,
 ):
     """Run get_available_targets with canned generator help output"""
     mock_run_cmake.return_value = (help_output, [])
-    mock_read_cache.return_value = {"CMAKE_GENERATOR": generator}
+    mock_get_generator.return_value = generator
     mock_get_cmake_module.return_value = "Svc_Module"
     return cmake_handler.get_available_targets("/fake/build/dir", None)
 
@@ -623,6 +623,17 @@ def test_get_available_targets_empty_output(cmake_handler):
     assert get_available_targets(cmake_handler, "Ninja", []) == []
     cmake_handler.cached_help_targets.clear()
     assert get_available_targets(cmake_handler, "Unix Makefiles", []) == []
+
+
+def test_get_generator_reads_cache_file(cmake_handler, tmp_path):
+    """Test that the generator is read from CMakeCache.txt, where it is an INTERNAL entry"""
+    (tmp_path / "CMakeCache.txt").write_text(
+        "CMAKE_ADDR2LINE:FILEPATH=/usr/bin/addr2line\n"
+        "CMAKE_GENERATOR:INTERNAL=Unix Makefiles\n"
+        "CMAKE_GENERATOR_INSTANCE:INTERNAL=\n"
+    )
+    assert cmake_handler._get_generator(tmp_path) == "Unix Makefiles"
+    assert cmake_handler._get_generator(tmp_path / "missing") == ""
 
 
 @patch("fprime.fbuild.cmake.CMakeHandler._is_noop_supported")
