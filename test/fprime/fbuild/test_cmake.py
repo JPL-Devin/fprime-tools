@@ -559,3 +559,78 @@ def test_generate_exists(cmake_handler):
     Tests generate_build with pre-existing directory.
     """
     generate_build(({}, []), True, cmake_handler)
+
+
+def test_read_cache_keyed_per_build_dir(cmake_handler):
+    """Tests that the cmake variable cache memo is keyed per build directory"""
+    outputs = {
+        "dir-a": ["VAR_A:STRING=value-a\n"],
+        "dir-b": ["VAR_A:STRING=value-b\n", "VAR_B:STRING=other\n"],
+    }
+
+    def fake_run_cmake(arguments, workdir=None, print_output=True, **kwargs):
+        return outputs[Path(workdir).name], []
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dirs = {}
+        for name in outputs:
+            build_dir = Path(temp_dir) / name
+            build_dir.mkdir()
+            (build_dir / "CMakeCache.txt").touch()
+            dirs[name] = build_dir
+        with patch.object(cmake_handler, "_run_cmake", side_effect=fake_run_cmake):
+            assert cmake_handler._read_cache(dirs["dir-a"])["VAR_A"] == "value-a"
+            assert cmake_handler._read_cache(dirs["dir-b"])["VAR_A"] == "value-b"
+            # Memoized: repeated reads return the per-directory values
+            assert cmake_handler._read_cache(dirs["dir-a"])["VAR_A"] == "value-a"
+            assert "VAR_B" not in cmake_handler._read_cache(dirs["dir-a"])
+
+
+def test_parse_help_targets_ninja():
+    """Tests parsing of the ninja help target output"""
+    stdout = [
+        "ninja: Entering directory `build'\n",
+        "all: phony\n",
+        "Svc_CmdDispatcher: phony\n",
+        "Svc_CmdDispatcher_check: phony\n",
+        "some_object.o: CXX_COMPILER\n",
+    ]
+    assert CMakeHandler._parse_help_targets(stdout, "Ninja") == [
+        "all",
+        "Svc_CmdDispatcher",
+        "Svc_CmdDispatcher_check",
+    ]
+
+
+def test_parse_help_targets_make():
+    """Tests parsing of the makefile help target output"""
+    stdout = [
+        "The following are some of the valid targets for this Makefile:\n",
+        "... all (the default if no target is provided)\n",
+        "... clean\n",
+        "... Svc_CmdDispatcher\n",
+        "... Svc_CmdDispatcher_check\n",
+    ]
+    assert CMakeHandler._parse_help_targets(stdout, "Unix Makefiles") == [
+        "all (the default if no target is provided)",
+        "clean",
+        "Svc_CmdDispatcher",
+        "Svc_CmdDispatcher_check",
+    ]
+
+
+def test_parse_help_targets_empty_output():
+    """Tests that empty help output parses without error"""
+    assert CMakeHandler._parse_help_targets([], "Ninja") == []
+    assert CMakeHandler._parse_help_targets([], "Unix Makefiles") == []
+
+
+def test_available_targets_prefix_strip(cmake_handler):
+    """Tests that module prefixes are stripped, not replaced, from target names"""
+    # A target containing the prefix twice must only lose the leading occurrence
+    cmake_handler.cached_help_targets = ["Svc_Svc", "Svc_Svc_check", "Other_target"]
+    with patch.object(cmake_handler, "get_cmake_module", return_value="Svc"):
+        assert cmake_handler.get_available_targets("unused", None) == [
+            "Svc",
+            "Svc_check",
+        ]

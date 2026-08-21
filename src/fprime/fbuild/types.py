@@ -1,7 +1,17 @@
 from enum import Enum
-from typing import List
+from typing import Iterable, List
 
 from fprime.common.error import FprimeException
+
+
+def join_cmake_list(items: Iterable) -> str:
+    """Join values into CMake's ';'-separated list form"""
+    return ";".join(str(item) for item in items)
+
+
+def split_cmake_list(value: str) -> List[str]:
+    """Split CMake's ';'-separated list form, dropping empty entries"""
+    return [item for item in (value or "").split(";") if item]
 
 
 class InvalidBuildCacheException(FprimeException):

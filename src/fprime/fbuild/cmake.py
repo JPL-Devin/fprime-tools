@@ -21,6 +21,7 @@ import subprocess
 import sys
 
 from fprime.common.error import FprimeException
+from fprime.fbuild.types import split_cmake_list
 
 
 class CMakeHandler:
@@ -36,7 +37,7 @@ class CMakeHandler:
 
     def __init__(self):
         """Instantiate a basic CMake handler"""
-        self._cmake_cache = None
+        self._cmake_cache = {}
         self.verbose = False
         self.cached_help_targets = []
         self.source_locations = None
@@ -179,7 +180,7 @@ class CMakeHandler:
         )
         non_null = filter(lambda item: item is not None and item != "", config_fields)
         # Read cache fields for each possible directory the build_dir, and the new tempdir
-        locations = itertools.chain(*map(lambda value: value.split(";"), non_null))
+        locations = itertools.chain(*map(split_cmake_list, non_null))
         mapped = map(os.path.abspath, locations)
         # Removes duplicates, by creating an ordered dictionary, and then asking for its keys
         return list(collections.OrderedDict.fromkeys(mapped).keys())
@@ -360,31 +361,42 @@ class CMakeHandler:
             stdout, _ = self._run_cmake(
                 run_args, write_override=True, print_output=False
             )
-            # help target lists all targets but has a different output format for ninja and make
-            if "Makefile" not in stdout[0]:
-                # Ninja output
-                self.cached_help_targets.extend(
-                    [
-                        line.replace(": phony", "").strip()
-                        for line in stdout
-                        if line.endswith(": phony\n")
-                    ]
+            self.cached_help_targets.extend(
+                self._parse_help_targets(
+                    stdout, self._read_cache(build_dir).get("CMAKE_GENERATOR", "")
                 )
-            else:
-                # Makefile output
-                self.cached_help_targets.extend(
-                    [
-                        line.replace("...", "").strip()
-                        for line in stdout
-                        if line.startswith("...")
-                    ]
-                )
+            )
 
         prefix = self.get_cmake_module(path, build_dir)
         return [
-            make.replace(prefix, "").strip("_")
+            make[len(prefix) :].strip("_")
             for make in self.cached_help_targets
             if make.startswith(prefix)
+        ]
+
+    @staticmethod
+    def _parse_help_targets(stdout, generator):
+        """Parse target names out of `help` target output for the given generator
+
+        The help target lists all targets but has a different output format for ninja and make.
+
+        Args:
+            stdout: lines of output (keepends) from the help target
+            generator: value of the CMAKE_GENERATOR cache variable
+
+        Returns:
+            list of target names
+        """
+        if "Makefile" not in generator:
+            # Ninja output
+            return [
+                line.replace(": phony", "").strip()
+                for line in stdout
+                if line.rstrip("\n").endswith(": phony")
+            ]
+        # Makefile output
+        return [
+            line.replace("...", "").strip() for line in stdout if line.startswith("...")
         ]
 
     def is_target_supported(self, build_dir: str, target: str):
@@ -448,8 +460,9 @@ class CMakeHandler:
         :param build_dir: build directory to harvest for cache variables
         :return: {<cmake cache variable>: <cmake cache value>}
         """
-        if self._cmake_cache is not None:
-            return self._cmake_cache
+        cache_key = str(Path(build_dir).resolve())
+        if cache_key in self._cmake_cache:
+            return self._cmake_cache[cache_key]
 
         reg = re.compile("([^:]+):[^=]*=(.*)")
         # Check that the build_dir is properly setup
@@ -458,10 +471,10 @@ class CMakeHandler:
         # Scan for lines in stdout that have non-None matches for the above regular expression
         valid_matches = filter(lambda item: item is not None, map(reg.match, stdout))
         # Return the dictionary composed from the match groups
-        self._cmake_cache = dict(
+        self._cmake_cache[cache_key] = dict(
             map(lambda match: (match.group(1), match.group(2)), valid_matches)
         )
-        return self._cmake_cache
+        return self._cmake_cache[cache_key]
 
     @staticmethod
     def cmake_validate_source_dir(source_dir):
@@ -506,13 +519,15 @@ class CMakeHandler:
         :param full: perform a full rebuild
         """
         environment = {} if environment is None else environment
+        # Clear internal caches of cmake variables and help targets for this build dir
+        self._cmake_cache.pop(str(Path(build_dir).resolve()), None)
+        self.cached_help_targets = []
         if full:
             run_args = ["--build", str(build_dir)]
             if self.verbose:
                 print("[CMAKE] Refreshing CMake build cache")
                 environment["VERBOSE"] = "1"
             run_args.extend(["--target", "rebuild_cache"])
-            self._cmake_cache = None  # Clear internal cache of cmake variables
             self._run_cmake(
                 run_args,
                 write_override=True,
