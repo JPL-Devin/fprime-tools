@@ -1,5 +1,5 @@
 """
-(test) fprime.util.cookiecutter_wrapper - new_deployment():
+(test) fprime.tools.cookiecutter - new_deployment():
 Test adding a new deployment to a project using cookiecutter.
 
 This test verifies the behavior of creating deployments in non-root directories,
@@ -13,8 +13,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from fprime.fbuild.builder import Build
-from fprime.util.cookiecutter_wrapper import new_deployment
+from fprime.build.builder import Build
+from fprime.tools.cookiecutter import new_deployment
 
 
 class TestNewDeployment(unittest.TestCase):
@@ -52,8 +52,8 @@ class TestNewDeployment(unittest.TestCase):
         # Remove the temporary directory
         shutil.rmtree(self.temp_dir)
 
-    @patch("fprime.util.cookiecutter_wrapper.cookiecutter")
-    @patch("fprime.util.cookiecutter_wrapper.register_with_cmake")
+    @patch("fprime.tools.cookiecutter.cookiecutter")
+    @patch("fprime.tools.cookiecutter.register_with_cmake")
     def test_new_deployment_in_root_dir(self, mock_register, mock_cookiecutter):
         """Test creating a deployment in the project root directory"""
         # Change to the project root directory
@@ -84,8 +84,8 @@ class TestNewDeployment(unittest.TestCase):
         self.assertIn("extra_context", kwargs)
         self.assertEqual(kwargs["extra_context"], {})  # No include path prefix
 
-    @patch("fprime.util.cookiecutter_wrapper.cookiecutter")
-    @patch("fprime.util.cookiecutter_wrapper.register_with_cmake")
+    @patch("fprime.tools.cookiecutter.cookiecutter")
+    @patch("fprime.tools.cookiecutter.register_with_cmake")
     def test_new_deployment_in_subdir(self, mock_register, mock_cookiecutter):
         """Test creating a deployment in a subdirectory"""
         # Change to the Deployments directory

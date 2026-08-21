@@ -2,7 +2,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from fprime.fbuild.enumerator import (
+from fprime.build.targets.enumerator import (
     BasicBuildTargetEnumerator,
     CliBuildTargetEnumerator,
     DesignateTargetAction,
@@ -10,7 +10,7 @@ from fprime.fbuild.enumerator import (
     RecursiveMultiBuildTargetEnumerator,
     SpecificBuildTargetEnumerator,
 )
-from fprime.fbuild.types import MissingBuildCachePath
+from fprime.build.types import MissingBuildCachePath
 
 # Path to the test data directory
 ENUMERATOR_DATA_PATH = Path(__file__).parent / "enumerator_data"

@@ -1,13 +1,13 @@
 """
-Tests for fprime.util.cli: argument parsing and command dispatch
+Tests for fprime.cli.entry: argument parsing and command dispatch
 """
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fprime.fbuild.builder import UnableToDetectProjectException
-from fprime.util.cli import parse_args, utility_entry
+from fprime.build.builder import UnableToDetectProjectException
+from fprime.cli.entry import parse_args, utility_entry
 
 
 @pytest.mark.parametrize(
@@ -88,8 +88,8 @@ def test_parse_args_phased_requires_deployment():
         parse_args(["new", "--component", "--phased"])
 
 
-@patch("fprime.util.cli.run_info")
-@patch("fprime.util.cli.load_build")
+@patch("fprime.cli.entry.run_info")
+@patch("fprime.cli.entry.load_build")
 def test_utility_entry_dispatch(mock_load_build, mock_run_info):
     """utility_entry loads a build and dispatches to the selected runner"""
     mock_build = MagicMock()
@@ -106,8 +106,8 @@ def test_utility_entry_dispatch(mock_load_build, mock_run_info):
     assert args[4] == []
 
 
-@patch("fprime.util.cli.run_version_check")
-@patch("fprime.util.cli.load_build")
+@patch("fprime.cli.entry.run_version_check")
+@patch("fprime.cli.entry.load_build")
 def test_utility_entry_version_check_skips_build(mock_load_build, mock_run_version):
     """version-check does not load a build"""
     mock_run_version.return_value = 0
@@ -117,7 +117,7 @@ def test_utility_entry_version_check_skips_build(mock_load_build, mock_run_versi
     assert args[0] is None
 
 
-@patch("fprime.util.cli.load_build")
+@patch("fprime.cli.entry.load_build")
 def test_utility_entry_error_exit_code(mock_load_build, capsys):
     """utility_entry returns 1 when the project cannot be detected"""
     mock_load_build.side_effect = UnableToDetectProjectException()
@@ -126,8 +126,8 @@ def test_utility_entry_error_exit_code(mock_load_build, capsys):
     assert "[ERROR] Could not detect project directory" in captured.err
 
 
-@patch("fprime.util.cli.run_info")
-@patch("fprime.util.cli.load_build")
+@patch("fprime.cli.entry.run_info")
+@patch("fprime.cli.entry.load_build")
 def test_utility_entry_runner_exit_code_propagated(mock_load_build, mock_run_info):
     """utility_entry propagates the runner's return code"""
     mock_run_info.return_value = 3

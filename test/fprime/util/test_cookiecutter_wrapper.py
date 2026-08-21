@@ -1,5 +1,5 @@
 """
-Tests for fprime.util.cookiecutter_wrapper
+Tests for fprime.tools.cookiecutter
 """
 
 from unittest.mock import MagicMock, patch
@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from cookiecutter.main import cookiecutter
 
-from fprime.fbuild.builder import Build
-from fprime.util.cookiecutter_wrapper import (
+from fprime.build.builder import Build
+from fprime.tools.cookiecutter import (
     find_nearest_cmake_file,
     new_component,
     new_deployment,
@@ -82,11 +82,9 @@ def _no_input_cookiecutter(*args, **kwargs):
     return cookiecutter(*args, no_input=True, **kwargs)
 
 
-@patch("fprime.util.cookiecutter_wrapper.register_with_cmake")
-@patch("fprime.util.cookiecutter_wrapper.confirm", return_value=False)
-@patch(
-    "fprime.util.cookiecutter_wrapper.cookiecutter", side_effect=_no_input_cookiecutter
-)
+@patch("fprime.tools.cookiecutter.register_with_cmake")
+@patch("fprime.tools.cookiecutter.confirm", return_value=False)
+@patch("fprime.tools.cookiecutter.cookiecutter", side_effect=_no_input_cookiecutter)
 def test_new_component_instantiates_template(
     mock_cc, mock_confirm, mock_register, project
 ):
@@ -97,10 +95,8 @@ def test_new_component_instantiates_template(
     mock_register.assert_called_once()
 
 
-@patch("fprime.util.cookiecutter_wrapper.register_with_cmake")
-@patch(
-    "fprime.util.cookiecutter_wrapper.cookiecutter", side_effect=_no_input_cookiecutter
-)
+@patch("fprime.tools.cookiecutter.register_with_cmake")
+@patch("fprime.tools.cookiecutter.cookiecutter", side_effect=_no_input_cookiecutter)
 def test_new_deployment_instantiates_template(mock_cc, mock_register, project):
     proj_root, build = project
     args = MagicMock(force=False, overwrite=False, phased=False)
@@ -109,10 +105,8 @@ def test_new_deployment_instantiates_template(mock_cc, mock_register, project):
     mock_register.assert_called_once()
 
 
-@patch("fprime.util.cookiecutter_wrapper.register_with_cmake")
-@patch(
-    "fprime.util.cookiecutter_wrapper.cookiecutter", side_effect=_no_input_cookiecutter
-)
+@patch("fprime.tools.cookiecutter.register_with_cmake")
+@patch("fprime.tools.cookiecutter.cookiecutter", side_effect=_no_input_cookiecutter)
 def test_new_subtopology_instantiates_template(mock_cc, mock_register, project):
     proj_root, build = project
     args = MagicMock(overwrite=False)
@@ -121,10 +115,8 @@ def test_new_subtopology_instantiates_template(mock_cc, mock_register, project):
     mock_register.assert_called_once()
 
 
-@patch("fprime.util.cookiecutter_wrapper.register_with_cmake")
-@patch(
-    "fprime.util.cookiecutter_wrapper.cookiecutter", side_effect=_no_input_cookiecutter
-)
+@patch("fprime.tools.cookiecutter.register_with_cmake")
+@patch("fprime.tools.cookiecutter.cookiecutter", side_effect=_no_input_cookiecutter)
 def test_new_module_instantiates_template(mock_cc, mock_register, project):
     proj_root, build = project
     args = MagicMock(overwrite=False, path=str(proj_root))
@@ -133,9 +125,7 @@ def test_new_module_instantiates_template(mock_cc, mock_register, project):
     mock_register.assert_called_once()
 
 
-@patch(
-    "fprime.util.cookiecutter_wrapper.cookiecutter", side_effect=_no_input_cookiecutter
-)
+@patch("fprime.tools.cookiecutter.cookiecutter", side_effect=_no_input_cookiecutter)
 def test_new_rule_based_testing_instantiates_template(mock_cc, project):
     proj_root, build = project
     args = MagicMock()
@@ -143,9 +133,9 @@ def test_new_rule_based_testing_instantiates_template(mock_cc, project):
     assert (proj_root / "test" / "ut").is_dir()
 
 
-@patch("fprime.util.cookiecutter_wrapper.register_with_cmake")
-@patch("fprime.util.cookiecutter_wrapper.confirm", return_value=False)
-@patch("fprime.util.cookiecutter_wrapper.cookiecutter")
+@patch("fprime.tools.cookiecutter.register_with_cmake")
+@patch("fprime.tools.cookiecutter.confirm", return_value=False)
+@patch("fprime.tools.cookiecutter.cookiecutter")
 def test_new_component_honors_overwrite(mock_cc, mock_confirm, mock_register, project):
     proj_root, build = project
     mock_cc.return_value = str(proj_root / "MyComponent")

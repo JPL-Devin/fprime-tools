@@ -7,16 +7,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fprime.fbuild.cli import purge
-from fprime.fbuild.cmake import CMakeExecutionException, CMakeHandler
-from fprime.fbuild.gcovr import Gcovr
-from fprime.fbuild.target import TargetScope
-from fprime.fbuild.types import BuildType
+from fprime.cli.fbuild import purge
+from fprime.build.cmake import CMakeExecutionException, CMakeHandler
+from fprime.build.targets.gcovr import Gcovr
+from fprime.build.targets.target import TargetScope
+from fprime.build.types import BuildType
 
 
-@patch("fprime.fbuild.cmake.CMakeHandler.cmake_refresh_cache")
-@patch("fprime.fbuild.cmake.CMakeHandler.validate_cmake_cache")
-@patch("fprime.fbuild.cmake.CMakeHandler._run_cmake")
+@patch("fprime.build.cmake.CMakeHandler.cmake_refresh_cache")
+@patch("fprime.build.cmake.CMakeHandler.validate_cmake_cache")
+@patch("fprime.build.cmake.CMakeHandler._run_cmake")
 def test_auto_refresh_retry_on_no_rule(mock_run, mock_validate, mock_refresh):
     """'No rule to make target' triggers a cache refresh and a retry that can succeed"""
     handler = CMakeHandler()
@@ -35,9 +35,9 @@ def test_auto_refresh_retry_on_no_rule(mock_run, mock_validate, mock_refresh):
     assert mock_run.call_count == 2
 
 
-@patch("fprime.fbuild.cmake.CMakeHandler.cmake_refresh_cache")
-@patch("fprime.fbuild.cmake.CMakeHandler.validate_cmake_cache")
-@patch("fprime.fbuild.cmake.CMakeHandler._run_cmake")
+@patch("fprime.build.cmake.CMakeHandler.cmake_refresh_cache")
+@patch("fprime.build.cmake.CMakeHandler.validate_cmake_cache")
+@patch("fprime.build.cmake.CMakeHandler._run_cmake")
 def test_no_auto_refresh_on_other_errors(mock_run, mock_validate, mock_refresh):
     """Any other build error is raised without attempting a cache refresh"""
     handler = CMakeHandler()
@@ -83,8 +83,8 @@ DEFAULT_OPTIONS = {
 }
 
 
-@patch("fprime.fbuild.gcovr.subprocess.call", return_value=0)
-@patch("fprime.fbuild.gcovr.shutil.which", return_value="/usr/bin/gcovr")
+@patch("fprime.build.targets.gcovr.subprocess.call", return_value=0)
+@patch("fprime.build.targets.gcovr.shutil.which", return_value="/usr/bin/gcovr")
 def test_gcovr_argv_defaults(mock_which, mock_call, tmp_path):
     """Default Gcovr argv excludes autocode/test sources and FW_ASSERT branches"""
     builder, project_root, build_dir, framework = make_gcovr_builder(tmp_path)
@@ -110,8 +110,8 @@ def test_gcovr_argv_defaults(mock_which, mock_call, tmp_path):
     assert (context.resolve() / "coverage").is_dir()
 
 
-@patch("fprime.fbuild.gcovr.subprocess.call", return_value=0)
-@patch("fprime.fbuild.gcovr.shutil.which", return_value="/usr/bin/gcovr")
+@patch("fprime.build.targets.gcovr.subprocess.call", return_value=0)
+@patch("fprime.build.targets.gcovr.shutil.which", return_value="/usr/bin/gcovr")
 def test_gcovr_argv_all_sources_jobs_and_pass_through(mock_which, mock_call, tmp_path):
     """--all-sources removes source exclusions; jobs and pass-through args are forwarded"""
     builder, project_root, build_dir, framework = make_gcovr_builder(tmp_path)
@@ -136,7 +136,7 @@ def make_purge_parsed(force):
     return parsed
 
 
-@patch("fprime.fbuild.cli.Build")
+@patch("fprime.cli.fbuild.Build")
 def test_purge_force_purges_existing_dir(mock_build_cls, tmp_path):
     """purge --force removes an existing build cache and install dir without confirmation"""
     purge_build = MagicMock()
@@ -149,7 +149,7 @@ def test_purge_force_purges_existing_dir(mock_build_cls, tmp_path):
     purge_build.purge_install.assert_called_once()
 
 
-@patch("fprime.fbuild.cli.Build")
+@patch("fprime.cli.fbuild.Build")
 def test_purge_force_skips_missing_dir(mock_build_cls, tmp_path):
     """purge --force skips purging when the build cache directory does not exist"""
     purge_build = MagicMock()
@@ -162,8 +162,8 @@ def test_purge_force_skips_missing_dir(mock_build_cls, tmp_path):
     purge_build.purge_install.assert_not_called()
 
 
-@patch("fprime.fbuild.cli.confirm", return_value=False)
-@patch("fprime.fbuild.cli.Build")
+@patch("fprime.cli.fbuild.confirm", return_value=False)
+@patch("fprime.cli.fbuild.Build")
 def test_purge_confirm_declined(mock_build_cls, mock_confirm, tmp_path):
     """purge without --force asks for confirmation and skips on decline"""
     purge_build = MagicMock()
@@ -177,8 +177,8 @@ def test_purge_confirm_declined(mock_build_cls, mock_confirm, tmp_path):
     assert mock_confirm.call_count == 2
 
 
-@patch("fprime.fbuild.cli.confirm", return_value=True)
-@patch("fprime.fbuild.cli.Build")
+@patch("fprime.cli.fbuild.confirm", return_value=True)
+@patch("fprime.cli.fbuild.Build")
 def test_purge_confirm_accepted(mock_build_cls, mock_confirm, tmp_path):
     """purge without --force purges when the user confirms"""
     purge_build = MagicMock()

@@ -1,5 +1,5 @@
 """
-Tests for fprime.fpp.merge (impl template auto-merge).
+Tests for fprime.tools.fpp.merge (impl template auto-merge).
 """
 
 import re

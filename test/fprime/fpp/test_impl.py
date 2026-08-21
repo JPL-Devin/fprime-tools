@@ -1,5 +1,5 @@
 """
-Tests for fprime.fpp.impl CLI gating (experimental --auto-merge).
+Tests for fprime.tools.fpp.impl CLI gating (experimental --auto-merge).
 """
 
 import argparse
