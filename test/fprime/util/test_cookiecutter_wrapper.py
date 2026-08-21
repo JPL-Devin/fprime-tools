@@ -7,6 +7,8 @@ from unittest.mock import MagicMock, patch
 
 from cookiecutter.exceptions import OutputDirExistsException, UnknownRepoType
 
+from fprime.fbuild.cmake import CMakeExecutionException
+
 from fprime.util.cookiecutter_wrapper import (
     find_nearest_cmake_file,
     is_valid_name,
@@ -121,3 +123,27 @@ def test_is_valid_name():
     assert is_valid_name("bad name") == " "
     with pytest.raises(ValueError):
         is_valid_name(None)
+
+
+@patch("fprime.util.cookiecutter_wrapper.register_with_cmake")
+@patch("fprime.util.cookiecutter_wrapper.run_impl")
+@patch("fprime.util.cookiecutter_wrapper.check_path_is_within_fprime_module")
+@patch("fprime.util.cookiecutter_wrapper.cookiecutter")
+def test_new_component_impl_failure_reported(
+    mock_cookiecutter,
+    mock_check,
+    mock_run_impl,
+    mock_register,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    """Tests that implementation-generation failures are reported, not raised"""
+    mock_check.return_value = False
+    mock_cookiecutter.return_value = str(tmp_path / "MyComponent")
+    mock_run_impl.side_effect = CMakeExecutionException("cmake failed", [], True)
+    monkeypatch.chdir(tmp_path)
+
+    result = new_component(_build_mock(tmp_path), _Args(force=False, overwrite=False))
+    assert result == 1
+    assert "Failed to create component" in capsys.readouterr().err

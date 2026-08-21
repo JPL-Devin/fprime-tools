@@ -202,11 +202,18 @@ def new_component(build: Build, parsed_args: "argparse.Namespace"):
     if code != 0:
         return code
     # Attempt implementation
-    if not run_impl(build, gen_path):
-        print(
-            f"[INFO] Did not generate implementations for {gen_path}. Please do so manually."
-        )
-        return 0
+    try:
+        if not run_impl(build, gen_path):
+            print(
+                f"[INFO] Did not generate implementations for {gen_path}. Please do so manually."
+            )
+            return 0
+    except CMakeExecutionException as exc:
+        print(f"[ERROR] Failed to create component. {exc}", file=sys.stderr)
+        return 1
+    except OSError as ose:
+        print(f"[ERROR] {ose}", file=sys.stderr)
+        return 1
     print("[INFO] Created new component and generated initial implementations.")
     return 0
 
