@@ -371,7 +371,8 @@ class CMakeHandler:
                 run_args, write_override=True, print_output=False
             )
             # help target lists all targets but has a different output format for ninja and make
-            if "Makefile" not in stdout[0]:
+            generator = self._read_cache(build_dir).get("CMAKE_GENERATOR", "")
+            if "Makefile" not in generator:
                 # Ninja output
                 self.cached_help_targets.extend(
                     [
@@ -392,7 +393,7 @@ class CMakeHandler:
 
         prefix = self.get_cmake_module(path, build_dir)
         return [
-            make.replace(prefix, "").strip("_")
+            make[len(prefix) :].strip("_")
             for make in self.cached_help_targets
             if make.startswith(prefix)
         ]
@@ -521,6 +522,7 @@ class CMakeHandler:
         :param full: perform a full rebuild
         """
         environment = {} if environment is None else environment
+        self.cached_help_targets.clear()
         if full:
             run_args = ["--build", str(build_dir)]
             if self.verbose:

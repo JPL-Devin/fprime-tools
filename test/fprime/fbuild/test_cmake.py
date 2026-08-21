@@ -553,6 +553,90 @@ def test_generate_environment(cmake_handler):
     generate_build(({}, []), False, cmake_handler, environment={"MY_ENV_VAR": "VALUE1"})
 
 
+NINJA_HELP_OUTPUT = [
+    "all: phony\n",
+    "clean: phony\n",
+    "help: phony\n",
+    "Svc_Module: phony\n",
+    "Svc_Module_build: phony\n",
+    "Svc_Module_Svc_Module_impl: phony\n",
+    "Svc_Module.o\n",
+]
+
+MAKE_HELP_OUTPUT = [
+    "The following are some of the valid targets for this Makefile:\n",
+    "... all (the default if no target is provided)\n",
+    "... clean\n",
+    "... Svc_Module\n",
+    "... Svc_Module_build\n",
+    "... Svc_Module_Svc_Module_impl\n",
+]
+
+
+@patch("fprime.fbuild.cmake.CMakeHandler.get_cmake_module")
+@patch("fprime.fbuild.cmake.CMakeHandler._read_cache")
+@patch("fprime.fbuild.cmake.CMakeHandler._run_cmake")
+def get_available_targets(
+    cmake_handler,
+    generator,
+    help_output,
+    mock_run_cmake,
+    mock_read_cache,
+    mock_get_cmake_module,
+):
+    """Run get_available_targets with canned generator help output"""
+    mock_run_cmake.return_value = (help_output, [])
+    mock_read_cache.return_value = {"CMAKE_GENERATOR": generator}
+    mock_get_cmake_module.return_value = "Svc_Module"
+    return cmake_handler.get_available_targets("/fake/build/dir", None)
+
+
+def test_get_available_targets_ninja(cmake_handler):
+    """Test target parsing of ninja-style help output"""
+    targets = get_available_targets(cmake_handler, "Ninja", NINJA_HELP_OUTPUT)
+    assert targets == ["", "build", "Svc_Module_impl"]
+    assert cmake_handler.cached_help_targets == [
+        "all",
+        "clean",
+        "help",
+        "Svc_Module",
+        "Svc_Module_build",
+        "Svc_Module_Svc_Module_impl",
+    ]
+
+
+def test_get_available_targets_make(cmake_handler):
+    """Test target parsing of make-style help output"""
+    targets = get_available_targets(cmake_handler, "Unix Makefiles", MAKE_HELP_OUTPUT)
+    assert targets == ["", "build", "Svc_Module_impl"]
+    assert cmake_handler.cached_help_targets == [
+        "all (the default if no target is provided)",
+        "clean",
+        "Svc_Module",
+        "Svc_Module_build",
+        "Svc_Module_Svc_Module_impl",
+    ]
+
+
+def test_get_available_targets_empty_output(cmake_handler):
+    """Test target parsing tolerates empty help output"""
+    assert get_available_targets(cmake_handler, "Ninja", []) == []
+    cmake_handler.cached_help_targets.clear()
+    assert get_available_targets(cmake_handler, "Unix Makefiles", []) == []
+
+
+@patch("fprime.fbuild.cmake.CMakeHandler._is_noop_supported")
+@patch("fprime.fbuild.cmake.CMakeHandler.execute_known_target")
+def test_refresh_cache_clears_help_targets(
+    mock_execute_known_target, mock_is_noop_supported, cmake_handler
+):
+    """Test that cmake_refresh_cache clears the cached help targets"""
+    mock_is_noop_supported.return_value = True
+    cmake_handler.cached_help_targets.extend(["stale_target"])
+    cmake_handler.cmake_refresh_cache("/some/build/dir")
+    assert cmake_handler.cached_help_targets == []
+
+
 def test_read_cache_per_directory(cmake_handler):
     """Test that _read_cache memoizes per build directory
 
