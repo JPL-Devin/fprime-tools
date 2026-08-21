@@ -30,7 +30,7 @@ def run_fpp_check(
         __: unused make_args
         ___: unused pass-through arguments
     """
-    FppUtility("fpp-check").execute(
+    return FppUtility("fpp-check").execute(
         build,
         parsed.path,
         args=({}, ["-u", parsed.unconnected] if parsed.unconnected else []),
@@ -53,7 +53,7 @@ def run_fpp_to_dict(
         __: unused make_args
         ___: unused pass-through arguments
     """
-    FppUtility("fpp-to-dict", imports_as_sources=False).execute(
+    return FppUtility("fpp-to-dict", imports_as_sources=False).execute(
         build,
         parsed.path,
         args=(

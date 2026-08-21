@@ -22,7 +22,7 @@ import importlib.metadata
 
 from fprime.fbuild.builder import Build, InvalidBuildCacheException
 from fprime.util.code_formatter import ClangFormatter
-from .versioning import VersionException, FPRIME_PIP_PACKAGES
+from .versioning import FPRIME_PIP_PACKAGES
 from fprime.util.cookiecutter_wrapper import (
     new_component,
     new_deployment,
@@ -271,7 +271,7 @@ def run_version_check(
         )
         fprime_version_pairs = [(out[i], out[i + 1]) for i in range(0, len(out), 2)]
         if fprime_version_pairs:
-            print(f"Project submodules:")
+            print("Project submodules:")
             for remote, version in fprime_version_pairs:
                 # Filter out by remotes unless all submodules are requested (for privacy reasons)
                 if (
