@@ -5,8 +5,8 @@ Tests for fbuild CLI command handlers
 import argparse
 from unittest.mock import MagicMock, patch
 
-from fprime.fbuild.cli import purge
-from fprime.fbuild.types import BuildType
+from fprime.cli.fbuild import purge
+from fprime.build.types import BuildType
 
 
 def _purge_args(force):
@@ -24,7 +24,7 @@ def _purge_build(tmp_path, exists=True, install_dir=None):
     return purge_build
 
 
-@patch("fprime.fbuild.cli.Build.get_build_list")
+@patch("fprime.cli.fbuild.Build.get_build_list")
 def test_purge_force_purges_existing_directory(mock_get_build_list, tmp_path):
     """Tests that purge --force purges an existing build directory without prompting"""
     purge_build = _purge_build(tmp_path)
@@ -35,7 +35,7 @@ def test_purge_force_purges_existing_directory(mock_get_build_list, tmp_path):
     assert kwargs.get("ignore_invalid") is True
 
 
-@patch("fprime.fbuild.cli.Build.get_build_list")
+@patch("fprime.cli.fbuild.Build.get_build_list")
 def test_purge_force_skips_missing_directory(mock_get_build_list, tmp_path, capsys):
     """Tests that purge --force skips a missing build directory"""
     purge_build = _purge_build(tmp_path, exists=False)
@@ -45,8 +45,8 @@ def test_purge_force_skips_missing_directory(mock_get_build_list, tmp_path, caps
     assert "Skipping purge" in capsys.readouterr().out
 
 
-@patch("fprime.fbuild.cli.confirm")
-@patch("fprime.fbuild.cli.Build.get_build_list")
+@patch("fprime.cli.fbuild.confirm")
+@patch("fprime.cli.fbuild.Build.get_build_list")
 def test_purge_confirm_declined(mock_get_build_list, mock_confirm, tmp_path):
     """Tests that declining the confirmation prompt skips the purge"""
     purge_build = _purge_build(tmp_path)
@@ -57,8 +57,8 @@ def test_purge_confirm_declined(mock_get_build_list, mock_confirm, tmp_path):
     purge_build.purge_install.assert_not_called()
 
 
-@patch("fprime.fbuild.cli.confirm")
-@patch("fprime.fbuild.cli.Build.get_build_list")
+@patch("fprime.cli.fbuild.confirm")
+@patch("fprime.cli.fbuild.Build.get_build_list")
 def test_purge_confirm_accepted_with_install(
     mock_get_build_list, mock_confirm, tmp_path
 ):

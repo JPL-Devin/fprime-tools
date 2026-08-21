@@ -1,6 +1,6 @@
-"""Tests for fprime.fbuild.check"""
+"""Tests for fprime.build.targets.check"""
 
-from fprime.fbuild.check import Check
+from fprime.build.targets.check import Check
 
 
 def test_resolve_test_directory_with_file(tmp_path):

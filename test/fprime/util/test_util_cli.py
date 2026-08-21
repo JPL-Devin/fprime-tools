@@ -1,11 +1,11 @@
 """
-Tests for fprime.util.cli argument parsing and dispatch
+Tests for fprime.cli.entry argument parsing and dispatch
 """
 
 import pytest
 from unittest.mock import MagicMock, patch
 
-from fprime.util.cli import parse_args, utility_entry
+from fprime.cli.entry import parse_args, utility_entry
 
 
 def test_parse_args_generate_cmake_args():
@@ -54,8 +54,8 @@ def test_parse_args_new_phased_requires_deployment(capsys):
 def test_utility_entry_dispatches_to_runner():
     """Tests that utility_entry loads a build and dispatches to the command runner"""
     build = MagicMock()
-    with patch("fprime.util.cli.load_build", return_value=build) as mock_load:
-        with patch("fprime.util.cli.parse_args") as mock_parse:
+    with patch("fprime.cli.entry.load_build", return_value=build) as mock_load:
+        with patch("fprime.cli.entry.parse_args") as mock_parse:
             runner = MagicMock(return_value=0)
             parsed = MagicMock()
             parsed.command = "build"
@@ -67,8 +67,8 @@ def test_utility_entry_dispatches_to_runner():
 
 def test_utility_entry_version_check_skips_build_loading():
     """Tests that version-check does not load a build object"""
-    with patch("fprime.util.cli.load_build") as mock_load:
-        with patch("fprime.util.cli.parse_args") as mock_parse:
+    with patch("fprime.cli.entry.load_build") as mock_load:
+        with patch("fprime.cli.entry.parse_args") as mock_parse:
             runner = MagicMock(return_value=0)
             parsed = MagicMock()
             parsed.command = "version-check"
@@ -86,8 +86,8 @@ def test_utility_entry_version_check_skips_build_loading():
 
 def test_utility_entry_error_returns_one(capsys):
     """Tests that runner exceptions are reported on stderr with exit status 1"""
-    with patch("fprime.util.cli.load_build", return_value=MagicMock()):
-        with patch("fprime.util.cli.parse_args") as mock_parse:
+    with patch("fprime.cli.entry.load_build", return_value=MagicMock()):
+        with patch("fprime.cli.entry.parse_args") as mock_parse:
             runner = MagicMock(side_effect=ValueError("bad input"))
             parsed = MagicMock()
             parsed.command = "build"

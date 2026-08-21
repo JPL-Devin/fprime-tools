@@ -5,8 +5,8 @@ Tests for the Gcovr coverage action argument construction
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from fprime.fbuild.gcovr import Gcovr
-from fprime.fbuild.target import TargetScope
+from fprime.build.targets.gcovr import Gcovr
+from fprime.build.targets.target import TargetScope
 
 ALL_OPTIONS = [
     "--all-sources",
@@ -38,8 +38,12 @@ def _run_gcovr(tmp_path, builder, make_args=None, pass_through=None, options=Non
     """Run Gcovr.execute with mocked subprocess and return the argv it was given"""
     options = {option: False for option in ALL_OPTIONS} | (options or {})
     gcovr = Gcovr(TargetScope.GLOBAL)
-    with patch("fprime.fbuild.gcovr.shutil.which", return_value="/usr/bin/gcovr"):
-        with patch("fprime.fbuild.gcovr.subprocess.call", return_value=0) as mock_call:
+    with patch(
+        "fprime.build.targets.gcovr.shutil.which", return_value="/usr/bin/gcovr"
+    ):
+        with patch(
+            "fprime.build.targets.gcovr.subprocess.call", return_value=0
+        ) as mock_call:
             gcovr.execute(
                 builder, tmp_path, (make_args or {}, pass_through or [], options)
             )

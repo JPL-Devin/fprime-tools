@@ -1,0 +1,162 @@
+"""fprime.build.targets.check: check target implementation
+
+The 'check' target is designed to call CTest executable(s) to run tests. It is a composite target used to build and run
+the test targets.
+"""
+
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Tuple, Dict, List
+
+from fprime.build.types import NoTargetFoundException
+from fprime.build.targets.target import (
+    TargetScope,
+    EnumeratedAction,
+    CompositeTarget,
+)
+
+from fprime.build.targets.target import BuildSystemTarget
+from .enumerator import BuildTargetEnumerator, EnumeratedContext
+
+
+class Check(EnumeratedAction):
+    """Target invoking CTest executable to run tests"""
+
+    EXECUTABLE = "ctest"
+    TEST_DIR_FILE = "test-dir.fprime-util"
+
+    def __init__(
+        self, scope: TargetScope, build_target_enumerator: BuildTargetEnumerator = None
+    ):
+        """Initialize this action with the test enumerator"""
+        super().__init__(scope=scope, build_target_enumerator=build_target_enumerator)
+
+    def any_supported(self, builder: "Build", context_with_path: EnumeratedContext):
+        """Check if this target is supported in the given context
+
+        This will determine if two conditions are met:
+        1. CTest is available
+        2. There are test targets to run
+        """
+        if not bool(shutil.which(self.EXECUTABLE)):
+            return False
+        context, _ = context_with_path
+        return len(context) > 0
+
+    def execute_all(
+        self,
+        builder: "Build",
+        context_with_path: EnumeratedContext,
+        args: Tuple[Dict[str, str], List[str], Dict[str, bool]],
+    ):
+        """Execute this target"""
+        if not bool(shutil.which(self.EXECUTABLE)):
+            print("[ERROR] CTest not found", file=sys.stderr)
+        context, context_path = context_with_path
+        build_cache_path = (
+            builder.get_build_cache_path(context_path)
+            if context_path
+            else builder.build_dir
+        )
+        test_directory = self._resolve_test_directory(build_cache_path)
+
+        if not context:
+            # This only happens if the provided path does not contain tests
+            # and neither '--all' nor '--recursive' were provided
+            raise NoTargetFoundException(
+                "No tests were found in the given context. Did you mean to "
+                "use `fprime-util check --recursive` or `--all` ?"
+            )
+
+        cli_args = [
+            self.EXECUTABLE,
+            "--test-dir",
+            str(test_directory),
+            "--no-tests=error",
+        ]
+        make_args = args[0]
+
+        # Jobs flag
+        if "-j" in make_args or "--jobs" in make_args:
+            cli_args.extend(
+                ["--parallel", str(make_args.get("--jobs", make_args.get("-j", 1)))]
+            )
+        # Check for conditions that result in verbose output
+        # 1. Explicitly verbose
+        # 2. Context is not "all" (or .*)
+        if builder.is_verbose() or (
+            context and context != ["all"] and ".*" not in context
+        ):
+            cli_args.append("-V")
+
+        print(f"[INFO] Running CTest with context: {context}")
+        # When not "all" append a regex to filter tests. .* works as a regex
+        if context and context != ["all"]:
+            test_regex = f"^({'|'.join(context)})$"
+            cli_args.extend(["-R", test_regex])
+        # Extend with "pass through" arguments
+        cli_args.extend(args[1])
+        # When verbose print the commands run
+        if builder.is_verbose():
+            joined = "' '".join(cli_args)
+            print(f"[INFO] Running CTest: '{joined}'")
+
+        # Check ensures errors result in this process erroring
+        subprocess.run(cli_args, check=True)
+
+    @staticmethod
+    def _resolve_test_directory(build_cache_path: Path) -> Path:
+        """Resolve the CTest test directory from the build cache path.
+
+        Checks for a test-dir.fprime-util file in the build cache path. If found, the
+        path within is used as the CTest test directory. This allows the build system to
+        decouple the test directory from the enumeration directory, which is necessary
+        when tests are registered in sibling directories (e.g. component tests enumerated
+        from a deployment context).
+
+        When the file is not found, falls back to the build cache path itself.
+
+        Args:
+            build_cache_path: path within the build cache for the current context
+
+        Returns:
+            Path to use as the CTest --test-dir
+        """
+        test_dir_file = build_cache_path / Check.TEST_DIR_FILE
+        if test_dir_file.is_file():
+            test_dir_content = test_dir_file.read_text().strip()
+            resolved = Path(test_dir_content)
+            if not resolved.is_absolute():
+                resolved = (build_cache_path / resolved).resolve()
+            return resolved
+        return build_cache_path
+
+
+class CheckTarget(CompositeTarget):
+    """Target designed to build and run the tests"""
+
+    def __init__(
+        self,
+        scope: TargetScope,
+        build_target_enumerators: List[BuildTargetEnumerator],
+        *args,
+        **kwargs,
+    ):
+        """Constructor setting child targets"""
+        build_target = BuildSystemTarget(
+            scope=scope,
+            build_target_enumerator=build_target_enumerators[0],
+            *args,
+            **kwargs,
+        )
+        check_action = Check(
+            scope=scope, build_target_enumerator=build_target_enumerators[1]
+        )
+        super().__init__(
+            composite_targets=[build_target, check_action],
+            scope=scope,
+            *args,
+            **kwargs,
+        )

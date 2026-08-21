@@ -1,5 +1,5 @@
 """
-Tests for fprime.util.cookiecutter_wrapper
+Tests for fprime.tools.cookiecutter
 """
 
 import pytest
@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 
 from cookiecutter.exceptions import OutputDirExistsException, UnknownRepoType
 
-from fprime.fbuild.cmake import CMakeExecutionException
+from fprime.build.cmake import CMakeExecutionException
 
-from fprime.util.cookiecutter_wrapper import (
+from fprime.tools.cookiecutter import (
     find_nearest_cmake_file,
     is_valid_name,
     new_component,
@@ -77,10 +77,10 @@ def _build_mock(tmp_path):
     return build
 
 
-@patch("fprime.util.cookiecutter_wrapper.register_with_cmake")
-@patch("fprime.util.cookiecutter_wrapper.run_impl", return_value=True)
-@patch("fprime.util.cookiecutter_wrapper.check_path_is_within_fprime_module")
-@patch("fprime.util.cookiecutter_wrapper.cookiecutter")
+@patch("fprime.tools.cookiecutter.register_with_cmake")
+@patch("fprime.tools.cookiecutter.run_impl", return_value=True)
+@patch("fprime.tools.cookiecutter.check_path_is_within_fprime_module")
+@patch("fprime.tools.cookiecutter.cookiecutter")
 def test_new_component_honors_overwrite(
     mock_cookiecutter, mock_check, mock_run_impl, mock_register, tmp_path, monkeypatch
 ):
@@ -93,7 +93,7 @@ def test_new_component_honors_overwrite(
     assert mock_cookiecutter.call_args.kwargs["overwrite_if_exists"] is True
 
 
-@patch("fprime.util.cookiecutter_wrapper.cookiecutter")
+@patch("fprime.tools.cookiecutter.cookiecutter")
 def test_new_module_reports_unknown_repo(mock_cookiecutter, tmp_path, capsys):
     """Tests that an invalid template source returns an error for new --module"""
     mock_cookiecutter.side_effect = UnknownRepoType()
@@ -107,7 +107,7 @@ def test_new_module_reports_unknown_repo(mock_cookiecutter, tmp_path, capsys):
     assert "not a valid cookiecutter template" in capsys.readouterr().err
 
 
-@patch("fprime.util.cookiecutter_wrapper.cookiecutter")
+@patch("fprime.tools.cookiecutter.cookiecutter")
 def test_new_subtopology_output_dir_exists(mock_cookiecutter, tmp_path, capsys):
     """Tests the existing-output-directory error path"""
     mock_cookiecutter.side_effect = OutputDirExistsException("'X' already exists")
@@ -125,10 +125,10 @@ def test_is_valid_name():
         is_valid_name(None)
 
 
-@patch("fprime.util.cookiecutter_wrapper.register_with_cmake")
-@patch("fprime.util.cookiecutter_wrapper.run_impl")
-@patch("fprime.util.cookiecutter_wrapper.check_path_is_within_fprime_module")
-@patch("fprime.util.cookiecutter_wrapper.cookiecutter")
+@patch("fprime.tools.cookiecutter.register_with_cmake")
+@patch("fprime.tools.cookiecutter.run_impl")
+@patch("fprime.tools.cookiecutter.check_path_is_within_fprime_module")
+@patch("fprime.tools.cookiecutter.cookiecutter")
 def test_new_component_impl_failure_reported(
     mock_cookiecutter,
     mock_check,
