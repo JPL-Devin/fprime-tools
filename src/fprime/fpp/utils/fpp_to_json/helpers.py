@@ -141,7 +141,7 @@ def parse_array(constant_JSON):
     for i in range(len(constant_Value_JSON)):
         if "ExprArray" not in constant_Value_JSON[i]["AstNode"]["data"]:
             arrayOpen = arrayOpen + parse_constant(constant_Value_JSON[i])
-            if i is not len(constant_Value_JSON) - 1:
+            if i != len(constant_Value_JSON) - 1:
                 arrayOpen = arrayOpen + ", "
         else:
             arrayOpen = (

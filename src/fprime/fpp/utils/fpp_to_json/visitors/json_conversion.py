@@ -110,6 +110,21 @@ class CompInstanceConverter:
 
         return self.instance_struct
 
+    @staticmethod
+    def _optional_expr(data, key):
+        """Parse an optional expression field ({"Some": <expr>} or "None") into its value"""
+        value = data.get(key)
+        if value is None or value == "None":
+            return None
+        expr = value["Some"]["AstNode"]["data"]
+        if "ExprLiteralInt" in expr:
+            return expr["ExprLiteralInt"]["value"]
+        if "ExprIdent" in expr:
+            return expr["ExprIdent"]["value"]
+        if "ExprDot" in expr:
+            return Utils.qualifier_calculator(expr["ExprDot"])
+        return value
+
     def _parse_phases(self):
         initSpecs = self.instance_JSON["DefComponentInstance"]["node"]["AstNode"][
             "data"
@@ -130,115 +145,26 @@ class CompInstanceConverter:
                     )
 
     def _parse(self):
-        self.instance_struct.name = self.instance_JSON["DefComponentInstance"]["node"][
-            "AstNode"
-        ]["data"]["name"]
+        instance_data = self.instance_JSON["DefComponentInstance"]["node"]["AstNode"][
+            "data"
+        ]
+
+        self.instance_struct.name = instance_data["name"]
         self.instance_struct.qf = self.instance_struct.name
 
-        components_bit_1 = self.instance_JSON["DefComponentInstance"]["node"][
-            "AstNode"
-        ]["data"]["component"]
-
-        self.instance_struct.component_name = Utils.value_parser(components_bit_1)
-        self.instance_struct.base_id = Utils.value_parser(
-            self.instance_JSON["DefComponentInstance"]["node"]["AstNode"]["data"][
-                "baseId"
-            ]
+        self.instance_struct.component_name = Utils.value_parser(
+            instance_data["component"]
         )
+        self.instance_struct.base_id = Utils.value_parser(instance_data["baseId"])
 
-        if (
-            "queueSize"
-            in self.instance_JSON["DefComponentInstance"]["node"]["AstNode"]["data"]
-        ):
-            self.instance_struct.queue_size = self.instance_JSON[
-                "DefComponentInstance"
-            ]["node"]["AstNode"]["data"]["queueSize"]
-        if (
-            "stackSize"
-            in self.instance_JSON["DefComponentInstance"]["node"]["AstNode"]["data"]
-        ):
-            self.instance_struct.stack_size = self.instance_JSON[
-                "DefComponentInstance"
-            ]["node"]["AstNode"]["data"]["stackSize"]
-        if (
-            "priority"
-            in self.instance_JSON["DefComponentInstance"]["node"]["AstNode"]["data"]
-        ):
-            self.instance_struct.priority = self.instance_JSON["DefComponentInstance"][
-                "node"
-            ]["AstNode"]["data"]["priority"]
-
-        if (
-            self.instance_struct.queue_size is not None
-            and self.instance_struct.queue_size != "None"
-        ):
-            queueSize_JSON = self.instance_struct.queue_size["Some"]["AstNode"]["data"]
-
-            if "ExprLiteralInt" in queueSize_JSON:
-                self.instance_struct.queue_size = queueSize_JSON["ExprLiteralInt"][
-                    "value"
-                ]
-            elif "ExprIdent" in queueSize_JSON:
-                self.instance_struct.queue_size = queueSize_JSON["ExprIdent"]["value"]
-            elif "ExprDot" in queueSize_JSON:
-                self.instance_struct.queue_size = Utils.qualifier_calculator(
-                    queueSize_JSON["ExprDot"]
-                )
-
-        if (
-            self.instance_struct.stack_size is not None
-            and self.instance_struct.stack_size != "None"
-        ):
-            stackSize_JSON = self.instance_struct.stack_size["Some"]["AstNode"]["data"]
-
-            if "ExprLiteralInt" in stackSize_JSON:
-                self.instance_struct.stack_size = stackSize_JSON["ExprLiteralInt"][
-                    "value"
-                ]
-            elif "ExprIdent" in stackSize_JSON:
-                self.instance_struct.stack_size = stackSize_JSON["ExprIdent"]["value"]
-            elif "ExprDot" in stackSize_JSON:
-                self.instance_struct.stack_size = Utils.qualifier_calculator(
-                    stackSize_JSON["ExprDot"]
-                )
-
-        if (
-            self.instance_struct.priority is not None
-            and self.instance_struct.priority != "None"
-        ):
-            priority_JSON = self.instance_struct.priority["Some"]["AstNode"]["data"]
-
-            if "ExprLiteralInt" in priority_JSON:
-                self.instance_struct.priority = priority_JSON["ExprLiteralInt"]["value"]
-            elif "ExprIdent" in priority_JSON:
-                self.instance_struct.priority = priority_JSON["ExprIdent"]["value"]
-            elif "ExprDot" in priority_JSON:
-                self.instance_struct.priority = Utils.qualifier_calculator(
-                    priority_JSON["ExprDot"]
-                )
-
-        if (
-            "cpu"
-            in self.instance_JSON["DefComponentInstance"]["node"]["AstNode"]["data"]
-        ):
-            self.instance_struct.cpu = self.instance_JSON["DefComponentInstance"][
-                "node"
-            ]["AstNode"]["data"]["cpu"]
-
-            if (
-                self.instance_struct.cpu is not None
-                and self.instance_struct.cpu != "None"
-            ):
-                cpu_JSON = self.instance_struct.cpu["Some"]["AstNode"]["data"]
-
-                if "ExprLiteralInt" in cpu_JSON:
-                    self.instance_struct.cpu = cpu_JSON["ExprLiteralInt"]["value"]
-                elif "ExprIdent" in cpu_JSON:
-                    self.instance_struct.cpu = cpu_JSON["ExprIdent"]["value"]
-                elif "ExprDot" in cpu_JSON:
-                    self.instance_struct.cpu = Utils.qualifier_calculator(
-                        cpu_JSON["ExprDot"]
-                    )
+        self.instance_struct.queue_size = self._optional_expr(
+            instance_data, "queueSize"
+        )
+        self.instance_struct.stack_size = self._optional_expr(
+            instance_data, "stackSize"
+        )
+        self.instance_struct.priority = self._optional_expr(instance_data, "priority")
+        self.instance_struct.cpu = self._optional_expr(instance_data, "cpu")
 
 
 class PortConverter:
@@ -257,10 +183,12 @@ class PortConverter:
         self.port_struct.name = self.port_JSON["DefPort"]["node"]["AstNode"]["data"][
             "name"
         ]
-        self.port_struct.qf = self.port_name
+        self.port_struct.qf = self.port_struct.name
 
-        for i in self.port_JSON["DefPort"]["node"]["AstNode"]["data"]["params"]:
-            param = self.port_JSON["DefPort"]["node"]["AstNode"]["data"]["params"][i][1]
+        for param_entry in self.port_JSON["DefPort"]["node"]["AstNode"]["data"][
+            "params"
+        ]:
+            param = param_entry[1]
             paramToAppend = {
                 "name": None,
                 "type": None,
