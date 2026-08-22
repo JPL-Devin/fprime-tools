@@ -12,12 +12,35 @@ import webbrowser
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple
 
+from fprime.common.error import FprimeException
 from fprime.tools.fpp.common import FppUtility
 
 try:
     from fprime_visual.flask.app import construct_app
 except ImportError:
     construct_app = None
+
+
+def _mkdir_or_die(directory: Path, viz_cache_base: Path):
+    """Create a directory, raising a PermissionError pointing at --working-dir on failure"""
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        raise PermissionError(
+            f"Unable to write to {viz_cache_base.resolve()}. Use --working-dir to set a different location."
+        )
+
+
+def _run_fpl_layout(input_text: str, output_file: Path, env: Dict[str, str]):
+    """Run fpl-layout on the given connection graph text, writing JSON to output_file"""
+    with open(output_file.resolve(), "w") as json_file:
+        subprocess.run(
+            ["fpl-layout"],
+            stdout=json_file,
+            input=input_text.encode(),
+            check=True,
+            env=env,
+        )
 
 
 def run_fprime_visualize(
@@ -53,21 +76,14 @@ def run_fprime_visualize(
     if parsed.working_dir:
         viz_cache_base = Path(parsed.working_dir).resolve()
     else:
-        viz_cache_base = Path(
-            tempfile.TemporaryDirectory(prefix="fprime-visual-").name
-        ).resolve()
+        viz_cache_base = Path(tempfile.mkdtemp(prefix="fprime-visual-")).resolve()
 
     combined_env = os.environ.copy()
     combined_env.update(build.settings.get("environment", {}))
 
     # Set sub-paths for different types of generated files
     txt_cache = (viz_cache_base / "txt").resolve()
-    try:
-        txt_cache.mkdir(parents=True, exist_ok=True)
-    except PermissionError:
-        raise PermissionError(
-            f"Unable to write to {viz_cache_base.resolve()}. Use --working-dir to set a different location."
-        )
+    _mkdir_or_die(txt_cache, viz_cache_base)
 
     # Run fpp-to-layout
     FppUtility("fpp-to-layout").execute(
@@ -83,42 +99,23 @@ def run_fprime_visualize(
     for dir in topology_dirs:
         layout_txt_file_match = list(dir.glob("*.txt"))
         if not layout_txt_file_match:
-            raise Exception(f"Did not generate any '*.txt' layout files")
+            raise FprimeException("Did not generate any '*.txt' layout files")
         topology_name = dir.name.replace("Layout", "")
         viz_cache = viz_cache_base / topology_name
         topology_json = viz_cache / f"{topology_name}Topology.json"
         # keep track of all connections in the topology (used in topology layout JSON file)
         topology_connections = ""
-        try:
-            viz_cache.mkdir(parents=True, exist_ok=True)
-        except PermissionError:
-            raise PermissionError(
-                f"Unable to write to {viz_cache_base.resolve()}. Use --working-dir to set a different location."
-            )
+        _mkdir_or_die(viz_cache, viz_cache_base)
         for layout_txt in layout_txt_file_match:
             print(f"Generated layout TXT file: {layout_txt.resolve()}")
             connection_graph_json = viz_cache / f"{layout_txt.stem}.json"
+            with open(layout_txt.resolve(), "r") as txt_file:
+                txt_contents = txt_file.read()
+            topology_connections += txt_contents
             # Execute: fpl-layout < ConnectionGraph.txt > ConnectionGraph.json
-            with open(connection_graph_json.resolve(), "w") as json_file:
-                with open(layout_txt.resolve(), "r") as txt_file:
-                    txt_contents = txt_file.read()
-                    topology_connections += txt_contents
-                    subprocess.run(
-                        ["fpl-layout"],
-                        stdout=json_file,
-                        input=txt_contents.encode(),
-                        check=True,
-                        env=combined_env,
-                    )
+            _run_fpl_layout(txt_contents, connection_graph_json, combined_env)
         # Generate layout JSON for entire topology (all connections graphs in one layout)
-        with open(topology_json.resolve(), "w") as json_file:
-            subprocess.run(
-                ["fpl-layout"],
-                stdout=json_file,
-                input=topology_connections.encode(),
-                check=True,
-                env=combined_env,
-            )
+        _run_fpl_layout(topology_connections, topology_json, combined_env)
         source_dirs.append(viz_cache)
     source_resolved = [str(source.resolve()) for source in source_dirs]
     print("[INFO] Starting fprime-visual server...")
