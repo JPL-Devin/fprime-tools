@@ -200,6 +200,10 @@ def openFppFile(path):
     with open("fpp-ast.json", "r") as f:
         AST = json.load(f)
 
+    # newer fpp-to-json versions wrap the AST in a {"fppVersion": ..., "ast": [...]} envelope
+    if isinstance(AST, dict) and "ast" in AST:
+        AST = AST["ast"]
+
     os.chdir(pathDir)
 
     shutil.rmtree(pathToFolder, ignore_errors=True)

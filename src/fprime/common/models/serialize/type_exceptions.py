@@ -19,6 +19,7 @@ from fprime.common.error import FprimeException
 try:
     from fprime_gds.common.models.serialize.type_exceptions import (
         FprimeGdsException,
+        TypeException,
         AbstractMethodException,
         TypeRangeException,
         StringSizeException,

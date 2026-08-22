@@ -1,6 +1,7 @@
 """Tests for the fpp_to_json utility subpackage"""
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -106,6 +107,24 @@ def test_port_converter():
     assert struct.name == "ExamplePort"
     assert struct.qf == "ExamplePort"
     assert struct.parameters == [{"name": "value", "type": "U32"}]
+
+
+def test_open_fpp_file_unwraps_envelope(tmp_path):
+    """openFppFile handles both the bare-list and {"ast": [...]} envelope formats"""
+    from fprime.fpp.utils.fpp_to_json.helpers import openFppFile
+
+    original_cwd = os.getcwd()
+    try:
+        ast = load_ast()
+        for contents in (ast, {"fppVersion": "3.3.0", "ast": ast}):
+            fpp_file = tmp_path / "example.fpp"
+            fpp_file.write_text("")
+            cache = tmp_path / "exampleCache"
+            cache.mkdir(exist_ok=True)
+            (cache / "fpp-ast.json").write_text(json.dumps(contents))
+            assert openFppFile(str(fpp_file)) == ast
+    finally:
+        os.chdir(original_cwd)
 
 
 def test_fpp_depend_returns_output(tmp_path):
