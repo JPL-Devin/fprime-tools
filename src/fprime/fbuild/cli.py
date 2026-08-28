@@ -119,11 +119,7 @@ def purge(build: Build, parsed: argparse.Namespace):
                 purge_build.purge()
 
             install_dir = purge_build.install_dest_exists()
-            if (
-                purge_build.build_type != BuildType.BUILD_CUSTOM
-                and install_dir
-                and install_dir.exists()
-            ):
+            if purge_build.build_type != BuildType.BUILD_CUSTOM and install_dir:
                 print(
                     f"[INFO] {parsed.command.title()} install directory at: {install_dir}"
                 )

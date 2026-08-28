@@ -47,7 +47,7 @@ class BuildType(Enum):
     """
 
     """ Normal build normal binaries for a deployment mapping to CMake 'Release'"""  # pylint: disable=W0105
-    BUILD_NORMAL = (0,)
+    BUILD_NORMAL = 0
     """ Testing build allowing unit testing mapping to CMake 'Testing'"""  # pylint: disable=W0105
     BUILD_TESTING = 1
     """ FPP locations build """

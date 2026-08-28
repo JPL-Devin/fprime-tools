@@ -36,7 +36,6 @@ class CMakeHandler:
 
     def __init__(self):
         """Instantiate a basic CMake handler"""
-        self.settings = {}
         self._cmake_cache = None
         self.verbose = False
         self.cached_help_targets = []
@@ -115,8 +114,6 @@ class CMakeHandler:
             module = self.get_cmake_module(path, build_dir)
             if target == "":
                 cmake_target = module
-            elif top_target:
-                cmake_target = target
             else:
                 cmake_target = f"{module}_{target}".lstrip("_")
 
@@ -562,7 +559,6 @@ class CMakeHandler:
             environment = {}
 
         cm_environ = os.environ.copy()
-        cm_environ.update(self.settings.get("environment", {}))
         cm_environ.update(environment)
         cargs = ["cmake"]
         if not write_override:
