@@ -13,6 +13,24 @@ from .check import CheckTarget
 from .target import CompositeTarget, ExecutableAction, ExecuteContext, TargetScope
 
 
+def _get_project_root(builder: "Build") -> Path:
+    """Get the resolved project root for coverage calculations
+
+    Returns the project_root setting, falling back to framework_path, and finally to the
+    parent of the build cache directory (build caches are generated directly under the
+    project root).
+
+    Args:
+        builder: builder object
+    """
+    return Path(
+        builder.get_settings(
+            "project_root",
+            builder.get_settings("framework_path", builder.build_dir.parent),
+        )
+    ).resolve()
+
+
 def _get_project_path(builder: "Build", module: Union[str, Path]) -> Path:
     """Get the project path from a given module string
 
@@ -27,10 +45,7 @@ def _get_project_path(builder: "Build", module: Union[str, Path]) -> Path:
     if isinstance(module, Path):
         return module
     # Calculate the project path from the module name
-    project_root = builder.get_settings(
-        "project_root", builder.get_settings("framework_path", builder.build_dir.parent)
-    )
-    return Path(project_root) / module.replace("_", "/")
+    return _get_project_root(builder) / module.replace("_", "/")
 
 
 def _using_root(builder: "Build", context: Path, scope: TargetScope):
@@ -134,18 +149,15 @@ class Gcovr(ExecutableAction):
 
         coverage_output_dir = context.resolve() / "coverage"
         coverage_output_dir.mkdir(exist_ok=True)
-        project_root = builder.get_settings(
-            "project_root",
-            builder.get_settings("framework_path", builder.build_dir.parent.parent),
-        ).resolve()
+        project_root = _get_project_root(builder)
         filter_path = (
-            Path(project_root).resolve()
+            project_root
             if _using_root(builder, context, self.scope)
             else _get_project_path(builder, context)
         ).resolve()
-        framework_path = builder.get_settings(
-            "framework_path", builder.build_dir.parent.parent
-        )
+        framework_path = Path(
+            builder.get_settings("framework_path", builder.build_dir.parent.parent)
+        ).resolve()
         combined_env = os.environ.copy()
         combined_env.update(builder.settings.get("environment", {}))
         # gcovr is an unhappy beast

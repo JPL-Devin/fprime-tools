@@ -371,7 +371,8 @@ class CMakeHandler:
                 run_args, write_override=True, print_output=False
             )
             # help target lists all targets but has a different output format for ninja and make
-            if "Makefile" not in stdout[0]:
+            generator = self._get_generator(build_dir)
+            if "Makefile" not in generator:
                 # Ninja output
                 self.cached_help_targets.extend(
                     [
@@ -392,7 +393,7 @@ class CMakeHandler:
 
         prefix = self.get_cmake_module(path, build_dir)
         return [
-            make.replace(prefix, "").strip("_")
+            make[len(prefix) :].strip("_")
             for make in self.cached_help_targets
             if make.startswith(prefix)
         ]
@@ -474,6 +475,23 @@ class CMakeHandler:
         )
         return self._cmake_cache[cache_key]
 
+    @staticmethod
+    def _get_generator(build_dir):
+        """Read CMAKE_GENERATOR from the CMakeCache.txt file of the given build directory
+
+        CMAKE_GENERATOR is an INTERNAL cache entry, which `cmake -LA` does not list, so it must be
+        read from the cache file directly.
+        """
+        cache_file = Path(build_dir) / "CMakeCache.txt"
+        try:
+            with open(cache_file, encoding="utf8") as file_handle:
+                for line in file_handle:
+                    if line.startswith("CMAKE_GENERATOR:"):
+                        return line.split("=", 1)[1].strip()
+        except OSError:
+            pass
+        return ""
+
     def _invalidate_cache(self, build_dir):
         """Drop the memoized cache variables for the given build directory"""
         self._cmake_cache.pop(str(Path(build_dir).resolve()), None)
@@ -521,6 +539,7 @@ class CMakeHandler:
         :param full: perform a full rebuild
         """
         environment = {} if environment is None else environment
+        self.cached_help_targets.clear()
         if full:
             run_args = ["--build", str(build_dir)]
             if self.verbose:
