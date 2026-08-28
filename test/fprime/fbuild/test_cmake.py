@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest.mock import patch, call
 
 import pytest
-from fprime.fbuild.cmake import (
+from fprime.build.cmake import (
     CMakeHandler,
     CMakeExecutionException,
     CMakeInconsistentCacheException,
@@ -254,9 +254,9 @@ def test_run_cmake_editable(cmake_handler):
     assert "[ERROR]" not in "".join(stderr), "Echoer produced error"
 
 
-@patch("fprime.fbuild.cmake.CMakeHandler.get_cmake_module")
-@patch("fprime.fbuild.cmake.CMakeHandler.validate_cmake_cache")
-@patch("fprime.fbuild.cmake.CMakeHandler._run_cmake")
+@patch("fprime.build.cmake.CMakeHandler.get_cmake_module")
+@patch("fprime.build.cmake.CMakeHandler.validate_cmake_cache")
+@patch("fprime.build.cmake.CMakeHandler._run_cmake")
 def mock_execute_known_target(
     cmake_handler,
     setup_callback,
@@ -320,7 +320,7 @@ def test_execute_known_valid_target(cmake_handler):
     mock_run_cmake.assert_has_calls([expected_call])
 
 
-@patch("fprime.fbuild.cmake.CMakeHandler.cmake_refresh_cache")
+@patch("fprime.build.cmake.CMakeHandler.cmake_refresh_cache")
 def test_refresh_and_execute_known_target_valid(
     mock_cmake_refresh_cache, cmake_handler
 ):
@@ -417,8 +417,8 @@ def test_execute_known_valid_targets_with_cmake_args(cmake_handler):
     mock_run_cmake.assert_has_calls([expected_call])
 
 
-@patch("fprime.fbuild.cmake.CMakeHandler._is_noop_supported")
-@patch("fprime.fbuild.cmake.CMakeHandler.execute_known_target")
+@patch("fprime.build.cmake.CMakeHandler._is_noop_supported")
+@patch("fprime.build.cmake.CMakeHandler.execute_known_target")
 def cmake_refresh_cache(
     noop_supported,
     cmake_handler,
@@ -466,8 +466,8 @@ def test_refresh_cache_noop_with_environment(cmake_handler):
 @patch("os.makedirs")
 @patch("os.path.exists")
 @patch("pathlib.Path.touch")
-@patch("fprime.fbuild.cmake.CMakeHandler.cmake_validate_source_dir")
-@patch("fprime.fbuild.cmake.CMakeHandler._run_cmake")
+@patch("fprime.build.cmake.CMakeHandler.cmake_validate_source_dir")
+@patch("fprime.build.cmake.CMakeHandler._run_cmake")
 def generate_build(
     arguments,
     exists,
@@ -573,9 +573,9 @@ MAKE_HELP_OUTPUT = [
 ]
 
 
-@patch("fprime.fbuild.cmake.CMakeHandler.get_cmake_module")
-@patch("fprime.fbuild.cmake.CMakeHandler._get_generator")
-@patch("fprime.fbuild.cmake.CMakeHandler._run_cmake")
+@patch("fprime.build.cmake.CMakeHandler.get_cmake_module")
+@patch("fprime.build.cmake.CMakeHandler._get_generator")
+@patch("fprime.build.cmake.CMakeHandler._run_cmake")
 def get_available_targets(
     cmake_handler,
     generator,
@@ -636,8 +636,8 @@ def test_get_generator_reads_cache_file(cmake_handler, tmp_path):
     assert cmake_handler._get_generator(tmp_path / "missing") == ""
 
 
-@patch("fprime.fbuild.cmake.CMakeHandler._is_noop_supported")
-@patch("fprime.fbuild.cmake.CMakeHandler.execute_known_target")
+@patch("fprime.build.cmake.CMakeHandler._is_noop_supported")
+@patch("fprime.build.cmake.CMakeHandler.execute_known_target")
 def test_refresh_cache_clears_help_targets(
     mock_execute_known_target, mock_is_noop_supported, cmake_handler
 ):

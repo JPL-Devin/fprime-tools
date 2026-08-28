@@ -7,12 +7,12 @@ This will include the build_helper scripts and run them.
 
 import sys
 
-import fprime.util.cli
+import fprime.cli.entry
 
 
 def main():
     """Run wrapper, to point a console_script at"""
-    return fprime.util.cli.utility_entry(args=sys.argv[1:])
+    return fprime.cli.entry.utility_entry(args=sys.argv[1:])
 
 
 if __name__ == "__main__":

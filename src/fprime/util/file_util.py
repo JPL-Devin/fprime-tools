@@ -5,7 +5,7 @@
 
 from pathlib import Path
 
-from fprime.fbuild.builder import Build
+from fprime.build.builder import Build
 
 
 def get_directory_path_relative_to_root(build: Build) -> str:

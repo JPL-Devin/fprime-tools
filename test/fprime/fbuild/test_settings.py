@@ -1,5 +1,5 @@
 """
-(test) fprime.fbuild.settings:
+(test) fprime.build.settings:
 
 Tests the F prime settings module.
 @author joshuaa
@@ -8,7 +8,7 @@ Tests the F prime settings module.
 import os
 from pathlib import Path
 
-from fprime.fbuild.settings import IniSettings
+from fprime.build.settings import IniSettings
 
 LOCAL_PATH = Path(__file__).parent
 

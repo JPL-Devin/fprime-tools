@@ -1,5 +1,5 @@
 """
-Tests for fprime.fpp.common
+Tests for fprime.tools.fpp.common
 """
 
 from pathlib import Path
@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fprime.fpp.common import FppUtility, FppMissingSupportFiles
+from fprime.tools.fpp.common import FppUtility, FppMissingSupportFiles
 
 
 @pytest.fixture

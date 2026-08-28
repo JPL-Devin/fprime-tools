@@ -1,19 +1,19 @@
-"""Tests for fprime.fbuild.check"""
+"""Tests for fprime.build.targets.check"""
 
 from unittest.mock import patch
 
 import pytest
 
-from fprime.fbuild.check import Check
-from fprime.fbuild.target import TargetScope
+from fprime.build.targets.check import Check
+from fprime.build.targets.target import TargetScope
 
 
 def test_execute_all_missing_ctest():
     """When ctest is not on the PATH, execute_all raises without running a subprocess"""
     check = Check(scope=TargetScope.LOCAL)
     with (
-        patch("fprime.fbuild.check.shutil.which", return_value=None),
-        patch("fprime.fbuild.check.subprocess.run") as mock_run,
+        patch("fprime.build.targets.check.shutil.which", return_value=None),
+        patch("fprime.build.targets.check.subprocess.run") as mock_run,
     ):
         with pytest.raises(FileNotFoundError, match="CTest executable not found"):
             check.execute_all(None, ([], None), ({}, [], {}))
