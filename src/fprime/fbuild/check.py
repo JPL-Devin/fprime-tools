@@ -6,7 +6,6 @@ the test targets.
 
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from typing import Tuple, Dict, List
 
@@ -53,7 +52,7 @@ class Check(EnumeratedAction):
     ):
         """Execute this target"""
         if not bool(shutil.which(self.EXECUTABLE)):
-            print("[ERROR] CTest not found", file=sys.stderr)
+            raise FileNotFoundError("CTest executable not found on PATH")
         context, context_path = context_with_path
         build_cache_path = (
             builder.get_build_cache_path(context_path)
