@@ -23,6 +23,16 @@ import sys
 from fprime.common.error import FprimeException
 
 
+def _join_location_list(locations) -> str:
+    """Join locations into the ';'-separated form used by FPRIME_LIBRARY_LOCATIONS"""
+    return ";".join([str(location) for location in locations])
+
+
+def _split_location_list(joined: str) -> list:
+    """Split the ';'-separated form used by FPRIME_LIBRARY_LOCATIONS into locations"""
+    return [part for part in joined.split(";") if part]
+
+
 class CMakeHandler:
     """
     CMake handler interacts with an F prime CMake-based system. This will help us interact with CMake in refined ways.
@@ -36,7 +46,7 @@ class CMakeHandler:
 
     def __init__(self):
         """Instantiate a basic CMake handler"""
-        self._cmake_cache = None
+        self._cmake_cache = {}
         self.verbose = False
         self.cached_help_targets = []
         self.source_locations = None
@@ -179,7 +189,7 @@ class CMakeHandler:
         )
         non_null = filter(lambda item: item is not None and item != "", config_fields)
         # Read cache fields for each possible directory the build_dir, and the new tempdir
-        locations = itertools.chain(*map(lambda value: value.split(";"), non_null))
+        locations = itertools.chain(*map(_split_location_list, non_null))
         mapped = map(os.path.abspath, locations)
         # Removes duplicates, by creating an ordered dictionary, and then asking for its keys
         return list(collections.OrderedDict.fromkeys(mapped).keys())
@@ -448,8 +458,9 @@ class CMakeHandler:
         :param build_dir: build directory to harvest for cache variables
         :return: {<cmake cache variable>: <cmake cache value>}
         """
-        if self._cmake_cache is not None:
-            return self._cmake_cache
+        cache_key = str(Path(build_dir).resolve())
+        if cache_key in self._cmake_cache:
+            return self._cmake_cache[cache_key]
 
         reg = re.compile("([^:]+):[^=]*=(.*)")
         # Check that the build_dir is properly setup
@@ -458,10 +469,14 @@ class CMakeHandler:
         # Scan for lines in stdout that have non-None matches for the above regular expression
         valid_matches = filter(lambda item: item is not None, map(reg.match, stdout))
         # Return the dictionary composed from the match groups
-        self._cmake_cache = dict(
+        self._cmake_cache[cache_key] = dict(
             map(lambda match: (match.group(1), match.group(2)), valid_matches)
         )
-        return self._cmake_cache
+        return self._cmake_cache[cache_key]
+
+    def _invalidate_cache(self, build_dir):
+        """Drop the memoized cache variables for the given build directory"""
+        self._cmake_cache.pop(str(Path(build_dir).resolve()), None)
 
     @staticmethod
     def cmake_validate_source_dir(source_dir):
@@ -512,7 +527,7 @@ class CMakeHandler:
                 print("[CMAKE] Refreshing CMake build cache")
                 environment["VERBOSE"] = "1"
             run_args.extend(["--target", "rebuild_cache"])
-            self._cmake_cache = None  # Clear internal cache of cmake variables
+            self._invalidate_cache(build_dir)
             self._run_cmake(
                 run_args,
                 write_override=True,
@@ -535,6 +550,7 @@ class CMakeHandler:
                 print_output=True,
                 environment=environment,
             )
+            self._invalidate_cache(build_dir)
 
     def _run_cmake(
         self,

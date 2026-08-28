@@ -553,6 +553,21 @@ def test_generate_environment(cmake_handler):
     generate_build(({}, []), False, cmake_handler, environment={"MY_ENV_VAR": "VALUE1"})
 
 
+def test_read_cache_per_directory(cmake_handler):
+    """Test that _read_cache memoizes per build directory
+
+    Reads two different cmake-data fixture caches through the same handler and checks that
+    each directory returns its own values, and that repeated reads return the memoized copy.
+    """
+    data_dir = Path(__file__).resolve().parent / "cmake-data"
+    external = cmake_handler._read_cache(str(data_dir / "external"))
+    subdir = cmake_handler._read_cache(str(data_dir / "subdir"))
+    assert external["FPRIME_FRAMEWORK_PATH"] == "/opt/fprime"
+    assert subdir["FPRIME_FRAMEWORK_PATH"] == "/home/user11/Proj/fprime"
+    assert cmake_handler._read_cache(str(data_dir / "external")) is external
+    assert cmake_handler._read_cache(str(data_dir / "subdir")) is subdir
+
+
 def test_generate_exists(cmake_handler):
     """Test basic generate build call with supplied environment
 

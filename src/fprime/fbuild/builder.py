@@ -13,7 +13,12 @@ from typing import Iterable, List, Union
 # Forces targets into existence
 import fprime.fbuild.target_definitions  # lgtm[py/unused-import]
 from fprime.common.error import FprimeException
-from fprime.fbuild.cmake import CMakeException, CMakeHandler
+from fprime.fbuild.cmake import (
+    CMakeException,
+    CMakeHandler,
+    _join_location_list,
+    _split_location_list,
+)
 from fprime.fbuild.settings import IniSettings
 from fprime.fbuild.target import Target, TargetScope
 from fprime.fbuild.types import (
@@ -284,7 +289,7 @@ class Build:
             # Convert cache string to appropriate type matching settings.ini types
             if setting_key == "library_locations":
                 converted = (
-                    [Path(p) for p in cache_value.split(";") if p]
+                    [Path(p) for p in _split_location_list(cache_value)]
                     if cache_value
                     else []
                 )
@@ -484,13 +489,9 @@ class Build:
             A dictionary of cmake settings
         """
         needed = [
-            ("FPRIME_FRAMEWORK_PATH", "framework_path"),
-            ("FPRIME_LIBRARY_LOCATIONS", "library_locations"),
-            ("FPRIME_PROJECT_ROOT", "project_root"),
-            ("FPRIME_SETTINGS_FILE", "settings_file"),
-            ("FPRIME_ENVIRONMENT_FILE", "environment_file"),
-            ("FPRIME_CONFIG_DIR", "config_directory"),
-            ("FPRIME_INSTALL_DEST", "install_destination"),
+            (cache, setting)
+            for cache, setting in Build.CACHE_SETTING_MAP
+            if cache != "PROJECT_SOURCE_DIR"
         ]
 
         cmake_args = {
@@ -500,8 +501,8 @@ class Build:
         }
 
         if "FPRIME_LIBRARY_LOCATIONS" in cmake_args:
-            cmake_args["FPRIME_LIBRARY_LOCATIONS"] = ";".join(
-                [str(location) for location in cmake_args["FPRIME_LIBRARY_LOCATIONS"]]
+            cmake_args["FPRIME_LIBRARY_LOCATIONS"] = _join_location_list(
+                cmake_args["FPRIME_LIBRARY_LOCATIONS"]
             )
         return cmake_args
 
@@ -534,7 +535,34 @@ class Build:
             # build_dir must precede F-Prime: first match wins in get_build_cache_path
             return [self.build_dir.resolve(), (self.build_dir / "F-Prime").resolve()]
 
-        build_dir_resolved = self.build_dir.resolve()
+        locations = self._read_locations_file(
+            locations_file, self.build_dir, contain_within=self.build_dir.resolve()
+        )
+        if not locations:
+            msg = f"'{locations_file}' exists but contains no valid locations. Regenerate the build cache with 'fprime-util generate -f'."
+            raise InvalidBuildCacheException(msg, str(self.build_dir))
+        return locations
+
+    def _read_locations_file(
+        self, locations_file: Path, base_dir: Path, contain_within: Path = None
+    ) -> List[Path]:
+        """Parse a locations file into a list of existing resolved paths.
+
+        Each line in the file is a path (relative or absolute). Relative paths are
+        resolved with respect to base_dir. Blank lines and lines starting with '#'
+        are ignored. Paths that do not exist are filtered out.
+
+        Args:
+            locations_file: file listing one path per line
+            base_dir: directory used to resolve relative paths
+            contain_within: (optional) directory every path must resolve within
+
+        Returns:
+            List of resolved Path objects that exist on the filesystem.
+
+        Raises:
+            InvalidBuildCacheException: if a path resolves outside contain_within
+        """
         locations = []
         with open(locations_file, "r") as fh:
             for line in fh:
@@ -545,17 +573,15 @@ class Build:
                 path = (
                     path.resolve()
                     if path.is_absolute()
-                    else (self.build_dir / path).resolve()
+                    else (base_dir / path).resolve()
                 )
-                if not path.is_relative_to(build_dir_resolved):
-                    msg = f"'{path}' in '{locations_file}' resolves outside the build cache '{build_dir_resolved}'. This may indicate a malicious build cache."
+                if contain_within is not None and not path.is_relative_to(
+                    contain_within
+                ):
+                    msg = f"'{path}' in '{locations_file}' resolves outside the build cache '{contain_within}'. This may indicate a malicious build cache."
                     raise InvalidBuildCacheException(msg, str(self.build_dir))
                 locations.append(path)
-        locations = [loc for loc in locations if loc.exists()]
-        if not locations:
-            msg = f"'{locations_file}' exists but contains no valid locations. Regenerate the build cache with 'fprime-util generate -f'."
-            raise InvalidBuildCacheException(msg, str(self.build_dir))
-        return locations
+        return [loc for loc in locations if loc.exists()]
 
     def get_build_cache_locations(self) -> List[Path]:
         """Return the cached list of build cache locations.
@@ -586,19 +612,7 @@ class Build:
         if not locations_file.exists():
             return self._assemble_source_locations_from_settings()
 
-        locations = []
-        with open(locations_file, "r") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                path = Path(line)
-                if not path.is_absolute():
-                    path = (self.build_dir / path).resolve()
-                else:
-                    path = path.resolve()
-                locations.append(path)
-        locations = [loc for loc in locations if loc.exists()]
+        locations = self._read_locations_file(locations_file, self.build_dir)
         if not locations:
             msg = f"'{locations_file}' exists but contains no valid source locations. Regenerate the build cache with 'fprime-util generate -f'."
             raise InvalidBuildCacheException(msg, str(self.build_dir))
