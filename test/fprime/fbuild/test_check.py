@@ -44,3 +44,37 @@ def test_resolve_test_directory_parent_relative(tmp_path):
 
     result = Check._resolve_test_directory(deploy_dir)
     assert result == tmp_path.resolve()
+
+
+def test_check_ctest_regex_only_contains_filtered_tests(tmp_path, monkeypatch):
+    """Excluded tests are absent from the ctest -R regex built by Check"""
+    from unittest.mock import MagicMock
+
+    from fprime.fbuild import check as check_module
+    from fprime.fbuild.enumerator import (
+        FilteredBuildTargetEnumerator,
+        SpecificBuildTargetEnumerator,
+    )
+    from fprime.fbuild.target import TargetScope
+
+    run_mock = MagicMock()
+    monkeypatch.setattr(check_module.subprocess, "run", run_mock)
+
+    enumerator = FilteredBuildTargetEnumerator(
+        SpecificBuildTargetEnumerator(["Svc_A_ut_exe", "Svc_B_ut_exe", "Drv_C_ut_exe"])
+    )
+    enumerator.set_cli_patterns(["Svc_B*"])
+
+    builder = MagicMock()
+    builder.cmake_root = tmp_path
+    builder.get_build_cache_path.return_value = tmp_path
+    builder.is_verbose.return_value = False
+    builder.get_settings.side_effect = lambda setting, default: (
+        "Drv_C_ut_exe" if setting == "excluded_targets" else default
+    )
+
+    action = Check(scope=TargetScope.LOCAL, build_target_enumerator=enumerator)
+    action.execute(builder, tmp_path, args=({}, [], {}))
+
+    cli_args = run_mock.call_args.args[0]
+    assert cli_args[cli_args.index("-R") + 1] == "^(Svc_A_ut_exe)$"

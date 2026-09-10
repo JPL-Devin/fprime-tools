@@ -40,6 +40,7 @@ def test_settings():
                 "project_root": full_path(".."),
                 "config_directory": full_path("..") / "config",
                 "default_cmake_options": "",
+                "excluded_targets": "",
             },
         },
         {
@@ -61,6 +62,7 @@ def test_settings():
                 "project_root": full_path(".."),
                 "config_directory": full_path("..") / "config",
                 "default_cmake_options": "",
+                "excluded_targets": "",
             },
         },
         {
@@ -84,6 +86,7 @@ def test_settings():
                 "project_root": full_path(".."),
                 "config_directory": full_path("..") / "config",
                 "default_cmake_options": "",
+                "excluded_targets": "",
             },
         },
         {
@@ -107,6 +110,7 @@ def test_settings():
                 "project_root": full_path(".."),
                 "config_directory": full_path("..") / "config",
                 "default_cmake_options": "",
+                "excluded_targets": "",
             },
         },
         {
@@ -130,6 +134,7 @@ def test_settings():
                 "project_root": full_path(".."),
                 "config_directory": full_path("..") / "config",
                 "default_cmake_options": "OPTION1=ABC\nOPTION2=123\nOPTION3=Something",
+                "excluded_targets": "",
             },
         },
         {
@@ -149,6 +154,7 @@ def test_settings():
                 "project_root": full_path(".."),
                 "config_directory": full_path("..") / "config",
                 "default_cmake_options": "",
+                "excluded_targets": "",
             },
         },
         {
@@ -168,6 +174,7 @@ def test_settings():
                 "project_root": full_path(".."),
                 "config_directory": full_path("..") / "config",
                 "default_cmake_options": "",
+                "excluded_targets": "",
             },
         },
     ]
@@ -194,3 +201,10 @@ def test_settings_no_ini():
     assert "install_destination" not in results
     assert "settings_file" not in results
     assert results["environment"] == {}
+
+
+def test_settings_excluded_targets():
+    """excluded_targets is a multi-line platform setting"""
+    fp = full_path("settings-data/settings-excluded-targets.ini")
+    assert IniSettings.load(fp)["excluded_targets"] == "Svc_Foo*\nDrv_Bar_ut_exe"
+    assert IniSettings.load(fp, "arm-linux")["excluded_targets"] == "Svc_Baz"

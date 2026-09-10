@@ -7,12 +7,13 @@ target operations.
 """
 
 import argparse
+import sys
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple
 
 from fprime.common.utils import confirm
 from fprime.fbuild.builder import Build
-from fprime.fbuild.enumerator import DesignateTargetAction
+from fprime.fbuild.enumerator import DesignateTargetAction, ExcludeTargetAction
 from fprime.fbuild.target import Target
 from fprime.fbuild.types import BuildType
 
@@ -85,6 +86,13 @@ def run_fbuild_cli(
 
     else:
         target = get_target(parsed)
+        if getattr(parsed, "exclude", None) and (
+            getattr(parsed, "all", False) or getattr(parsed, "target", False)
+        ):
+            print(
+                "[WARNING] --exclude has no effect with --all or --target",
+                file=sys.stderr,
+            )
         option_args = {
             flag: getattr(parsed, flag.lstrip("-").replace("-", "_"), False)
             for flag, _ in target.option_args()
@@ -183,6 +191,16 @@ def add_target_parser(
             "--jobs",
             type=int,
             help="Parallel build job count. Default: build tool default (make: 1, ninja: # of cores)",
+        )
+        parser.add_argument(
+            "--exclude",
+            type=str,
+            action=ExcludeTargetAction,
+            default=None,
+            nargs=1,
+            metavar="PATTERN",
+            help="Skip build targets and unit tests whose name matches the glob PATTERN (e.g. 'Svc_Foo*'). "
+            "May be repeated. Adds to 'excluded_targets' in settings.ini. Has no effect with --all or --target",
         )
     parser, flags = existing[target.mnemonic]
     new_flags = [flag for flag in target.flags if flag not in flags]

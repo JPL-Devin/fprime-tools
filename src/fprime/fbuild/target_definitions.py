@@ -10,6 +10,7 @@ from .check import CheckTarget
 from fprime.fbuild.check import CheckTarget
 from .enumerator import (
     BasicBuildTargetEnumerator,
+    FilteredBuildTargetEnumerator,
     MultiBuildTargetEnumerator,
     RecursiveMultiBuildTargetEnumerator,
     SpecificBuildTargetEnumerator,
@@ -25,7 +26,9 @@ Target.register_target(
         desc="Build components, ports, and deployments registered in the current directory",
         scope=TargetScope.LOCAL,
         # This target will enumerate all build targets in the current directory
-        build_target_enumerator=MultiBuildTargetEnumerator(),
+        build_target_enumerator=FilteredBuildTargetEnumerator(
+            MultiBuildTargetEnumerator()
+        ),
     )
 )
 Target.register_target(
@@ -35,7 +38,9 @@ Target.register_target(
         scope=TargetScope.LOCAL,
         flags={"recursive"},
         # This target will enumerate all build targets recursively from the current directory
-        build_target_enumerator=RecursiveMultiBuildTargetEnumerator(),
+        build_target_enumerator=FilteredBuildTargetEnumerator(
+            RecursiveMultiBuildTargetEnumerator()
+        ),
     )
 )
 Target.register_target(
@@ -58,8 +63,10 @@ Target.register_target(
         flags={"ut"},
         build_type=BuildType.BUILD_TESTING,
         # This target will enumerate all build targets in the current directory
-        build_target_enumerator=MultiBuildTargetEnumerator(
-            fail_safe_enumerator=BasicBuildTargetEnumerator("ut_exe")
+        build_target_enumerator=FilteredBuildTargetEnumerator(
+            MultiBuildTargetEnumerator(
+                fail_safe_enumerator=BasicBuildTargetEnumerator("ut_exe")
+            )
         ),
     )
 )
@@ -71,7 +78,9 @@ Target.register_target(
         flags={"ut", "recursive"},
         build_type=BuildType.BUILD_TESTING,
         # This target will enumerate all build targets recursively from the current directory
-        build_target_enumerator=RecursiveMultiBuildTargetEnumerator(),
+        build_target_enumerator=FilteredBuildTargetEnumerator(
+            RecursiveMultiBuildTargetEnumerator()
+        ),
     )
 )
 Target.register_target(
@@ -104,8 +113,8 @@ Target.register_target(
         build_type=BuildType.BUILD_TESTING,
         # Check uses a standard build enumerator for the build step and a test enumerator for the test step
         build_target_enumerators=[
-            check_multi_build_enumerator,
-            check_multi_test_enumerator,
+            FilteredBuildTargetEnumerator(check_multi_build_enumerator),
+            FilteredBuildTargetEnumerator(check_multi_test_enumerator),
         ],
     )
 )
@@ -120,11 +129,15 @@ Target.register_target(
         # Check uses a standard build enumerator for the build step and a test enumerator for the test step. These are
         # converted into recursive enumerators.
         build_target_enumerators=[
-            RecursiveMultiBuildTargetEnumerator(
-                directory_enumerator=check_multi_build_enumerator
+            FilteredBuildTargetEnumerator(
+                RecursiveMultiBuildTargetEnumerator(
+                    directory_enumerator=check_multi_build_enumerator
+                )
             ),
-            RecursiveMultiBuildTargetEnumerator(
-                directory_enumerator=check_multi_test_enumerator
+            FilteredBuildTargetEnumerator(
+                RecursiveMultiBuildTargetEnumerator(
+                    directory_enumerator=check_multi_test_enumerator
+                )
             ),
         ],
     )
@@ -155,8 +168,8 @@ Target.register_target(
         # Gcovr uses the same enumerations as check: a standard build enumerator for the build step and a test enumerator
         # for the other steps.
         build_target_enumerators=[
-            check_multi_build_enumerator,
-            check_multi_test_enumerator,
+            FilteredBuildTargetEnumerator(check_multi_build_enumerator),
+            FilteredBuildTargetEnumerator(check_multi_test_enumerator),
         ],
     )
 )
@@ -171,11 +184,15 @@ Target.register_target(
         # Check uses a standard build enumerator for the build step and a test enumerator for the test step. These are
         # converted into recursive enumerators.
         build_target_enumerators=[
-            RecursiveMultiBuildTargetEnumerator(
-                directory_enumerator=check_multi_build_enumerator
+            FilteredBuildTargetEnumerator(
+                RecursiveMultiBuildTargetEnumerator(
+                    directory_enumerator=check_multi_build_enumerator
+                )
             ),
-            RecursiveMultiBuildTargetEnumerator(
-                directory_enumerator=check_multi_test_enumerator
+            FilteredBuildTargetEnumerator(
+                RecursiveMultiBuildTargetEnumerator(
+                    directory_enumerator=check_multi_test_enumerator
+                )
             ),
         ],
     )

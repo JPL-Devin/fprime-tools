@@ -88,6 +88,8 @@ These are the commands that may be run as part of {EXECUTABLE}. These commands w
 
 '{EXECUTABLE} build' builds in the selected directory ('-p/--path' or current working directory). When the selected directory contains a component, the component is built. When the current directory contains a deployment, the deployment is built and installed into the build artifact directory. The build cache used to perform this build is described in '{EXECUTABLE} --help'. Notably supplying the '--ut' flag switches to building the unit tests for components and all deployment unit tests for deployments. Supplying the '--all' flag will switch to building everything defined in the build system.
 
+Targets discovered in the selected directory (or recursively with '--recursive') can be skipped with '--exclude PATTERN', where PATTERN is a shell-style glob matched against the build target name (e.g. 'Svc_Foo*'). '--exclude' may be repeated, and patterns may also be listed in the 'excluded_targets' setting of settings.ini (one per line). Exclusions have no effect with '--all' or '--target'.
+
 '{EXECUTABLE} build' requires a build cache to have been generated
 '{EXECUTABLE} build --ut' requires a testing build cache to have been generated
 
@@ -100,6 +102,10 @@ Examples:
   -- Build Ref/SignalGen UTs --
   cd Ref/SignalGen
   {EXECUTABLE} build --ut
+
+  -- Build everything under Svc except Svc/Foo --
+  cd Svc
+  {EXECUTABLE} build --recursive --exclude 'Svc_Foo*'
 
 """,
     "impl": f"""Generate fprime implementation templates.
@@ -130,6 +136,8 @@ Example:
 '{EXECUTABLE} check' handles the running of unit tests. It can be used on components to run the component's unit tests, deployments to run deployment unit tests, and with the '--all' flag to run all unit tests found in the build system.
 '{EXECUTABLE} check' implies the '--ut' flag and specifying it is redundant.
 
+Unit tests discovered in the selected directory (or recursively with '--recursive') can be skipped with '--exclude PATTERN', where PATTERN is a shell-style glob matched against the unit test build target name (e.g. 'Svc_Foo_ut_exe'). Excluded unit tests are neither built nor run. '--exclude' may be repeated, and patterns may also be listed in the 'excluded_targets' setting of settings.ini (one per line). Exclusions have no effect with '--all'.
+
 '{EXECUTABLE} check' can also be supplied the '--coverage' flag. When the '--coverage' flag is supplied, the unit test is run and 'gcovr' is run on the output to check coverage. The default flags to 'gcovr' are '--print-summary', '--txt', '--html-details' along with filters to restrict the coverage to the existing component/deployment. Outputs are put in a subdirectory of the component/deployment titled "coverage".  Additional arguments can be supplied after the '--pass-through' flag with several caveats: '--pass-through ...' must be the last arguments on the command line, and all paths supplied to 'gcovr' must be full paths. Users should purge the build cache when switching between '--coverage --all' and '--coverage' in a deployment cache.
 
 Examples:
@@ -141,6 +149,10 @@ Examples:
   -- Run Ref/SignalGen Unit Tests With Coverage --
   cd Ref/SignalGen
   {EXECUTABLE} check --coverage
+
+  -- Run all Svc Unit Tests Except Svc/Foo --
+  cd Svc
+  {EXECUTABLE} check --recursive --exclude Svc_Foo_ut_exe
 
 """,
     "generate": f"""Generate build caches for the specified deployment

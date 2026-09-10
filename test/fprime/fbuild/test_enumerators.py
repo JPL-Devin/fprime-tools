@@ -6,6 +6,8 @@ from fprime.fbuild.enumerator import (
     BasicBuildTargetEnumerator,
     CliBuildTargetEnumerator,
     DesignateTargetAction,
+    ExcludeTargetAction,
+    FilteredBuildTargetEnumerator,
     MultiBuildTargetEnumerator,
     RecursiveMultiBuildTargetEnumerator,
     SpecificBuildTargetEnumerator,
@@ -226,3 +228,87 @@ def test_cli_build_target_enumerator():
     builder_mock = MagicMock()
     builder_mock.cmake_root = Path("/project/root")
     assert cli_enumerator.enumerate(builder_mock, None)[0] == values
+
+
+def _filter_builder_mock(excluded_targets=""):
+    """Builder mock whose settings hold the given excluded_targets value"""
+    builder_mock = MagicMock()
+    builder_mock.get_build_cache_path.side_effect = lambda path: path
+    builder_mock.get_settings.side_effect = lambda setting, default: (
+        excluded_targets if setting == "excluded_targets" else default
+    )
+    return builder_mock
+
+
+def test_filtered_enumerator_no_patterns_is_passthrough():
+    """Without patterns the delegate's targets and path are returned unchanged"""
+    ExcludeTargetAction._FILTERS = []
+    context_path = ENUMERATOR_DATA_PATH / "MultiBuildTargetEnumerator"
+    delegate = SpecificBuildTargetEnumerator(["a", "b"])
+    enumerator = FilteredBuildTargetEnumerator(delegate)
+    assert enumerator in ExcludeTargetAction._FILTERS
+    builder_mock = _filter_builder_mock()
+    assert enumerator.enumerate(builder_mock, context_path) == (
+        ["a", "b"],
+        builder_mock.cmake_root,
+    )
+
+
+def test_filtered_enumerator_settings_patterns():
+    """Patterns from settings.ini (whitespace/newline separated globs) drop matching targets"""
+    ExcludeTargetAction._FILTERS = []
+    context_path = ENUMERATOR_DATA_PATH / "MultiBuildTargetEnumerator"
+    delegate = SpecificBuildTargetEnumerator(
+        ["Svc_Foo", "Svc_Foo_ut_exe", "Svc_Bar", "Drv_Baz_ut_exe"]
+    )
+    enumerator = FilteredBuildTargetEnumerator(delegate)
+    builder_mock = _filter_builder_mock("Svc_Foo*\nDrv_Baz_ut_exe")
+    assert enumerator.enumerate(builder_mock, context_path)[0] == ["Svc_Bar"]
+
+
+def test_filtered_enumerator_matching_is_exact_glob():
+    """Patterns match the whole name, case-sensitively, not as substrings"""
+    patterns = ["Svc_Foo"]
+    assert FilteredBuildTargetEnumerator.is_excluded("Svc_Foo", patterns)
+    assert not FilteredBuildTargetEnumerator.is_excluded("Svc_Foo_ut_exe", patterns)
+    assert not FilteredBuildTargetEnumerator.is_excluded("svc_foo", patterns)
+    assert FilteredBuildTargetEnumerator.is_excluded("Svc_Foo_ut_exe", ["*_ut_exe"])
+    assert FilteredBuildTargetEnumerator.is_excluded("Svc_Foo", ["Svc_?oo"])
+
+
+def test_filtered_enumerator_cli_patterns_combine_with_settings():
+    """Repeated --exclude flags accumulate and combine with settings.ini patterns"""
+    ExcludeTargetAction._FILTERS = []
+    context_path = ENUMERATOR_DATA_PATH / "MultiBuildTargetEnumerator"
+    delegate = SpecificBuildTargetEnumerator(["a", "b", "c", "d"])
+    enumerator = FilteredBuildTargetEnumerator(delegate)
+
+    action = ExcludeTargetAction(option_strings=["--exclude"], dest="exclude")
+    namespace = MagicMock()
+    namespace.exclude = None
+    action(MagicMock(), namespace, ["a"])
+    action(MagicMock(), namespace, ["b"])
+    assert namespace.exclude == ["a", "b"]
+
+    builder_mock = _filter_builder_mock("d")
+    assert enumerator.enumerate(builder_mock, context_path)[0] == ["c"]
+
+
+def test_filtered_enumerator_wraps_recursive():
+    """Filtering applies to the flattened result of a recursive enumeration"""
+    ExcludeTargetAction._FILTERS = []
+    root_path = ENUMERATOR_DATA_PATH / "RecursiveMultiBuildTargetEnumerator"
+    enumerator = FilteredBuildTargetEnumerator(RecursiveMultiBuildTargetEnumerator())
+    enumerator.set_cli_patterns(["sub2*"])
+    found_targets, found_path = enumerator.enumerate(_filter_builder_mock(), root_path)
+    assert set(found_targets) == {"root_target1", "root_target2", "sub1_target1"}
+    assert found_path == root_path
+
+
+def test_filtered_enumerator_can_exclude_everything():
+    """Excluding every target yields an empty list (callers raise NoTargetFoundException)"""
+    ExcludeTargetAction._FILTERS = []
+    context_path = ENUMERATOR_DATA_PATH / "MultiBuildTargetEnumerator"
+    enumerator = FilteredBuildTargetEnumerator(SpecificBuildTargetEnumerator(["a"]))
+    enumerator.set_cli_patterns(["*"])
+    assert enumerator.enumerate(_filter_builder_mock(), context_path)[0] == []

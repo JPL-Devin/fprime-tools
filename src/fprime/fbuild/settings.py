@@ -109,6 +109,7 @@ class IniSettings:
             lambda settings: settings["settings_file"],
         ),
         ("default_cmake_options", SettingType.STRING, ""),
+        ("excluded_targets", SettingType.STRING, ""),
     ]
 
     @staticmethod

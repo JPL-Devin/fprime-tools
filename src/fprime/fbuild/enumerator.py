@@ -8,6 +8,7 @@ Note: this file was created with the help of generative AI.
 
 """
 
+import fnmatch
 from abc import ABC, abstractmethod
 from argparse import Action
 from pathlib import Path
@@ -45,6 +46,28 @@ class DesignateTargetAction(Action):
         setattr(namespace, "target", True)
 
 
+class ExcludeTargetAction(Action):
+    """argparse action collecting --exclude patterns and handing them to every FilteredBuildTargetEnumerator
+
+    Each occurrence of --exclude appends its pattern to the namespace list and pushes the accumulated list to all
+    registered filters, mirroring how DesignateTargetAction feeds --target to the designated enumerators.
+    """
+
+    _FILTERS = []
+
+    @classmethod
+    def register_filter(cls, filter_enumerator):
+        """Register a filter enumerator to receive command line patterns"""
+        cls._FILTERS.append(filter_enumerator)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        """Required __call__ function triggered by the parse"""
+        patterns = list(getattr(namespace, self.dest, None) or []) + list(values)
+        setattr(namespace, self.dest, patterns)
+        for filter_enumerator in self._FILTERS:
+            filter_enumerator.set_cli_patterns(patterns)
+
+
 class BuildTargetEnumerator(ABC):
     """Abstract base class for target enumeration strategies."""
 
@@ -52,6 +75,51 @@ class BuildTargetEnumerator(ABC):
     def enumerate(self, builder: "Build", context_path: Path) -> EnumeratedContext:
         """Enumerates build targets available in the given context path."""
         raise NotImplementedError()
+
+
+class FilteredBuildTargetEnumerator(BuildTargetEnumerator):
+    """Wraps another enumerator and drops targets matching exclusion patterns
+
+    Patterns are shell-style globs (fnmatch) matched against the full build target or test name, e.g. 'Svc_Foo*' or
+    '*_ut_exe'. They are read from the 'excluded_targets' setting (settings.ini, whitespace separated) and from the
+    --exclude command line flag; both sources are combined.
+    """
+
+    SETTING = "excluded_targets"
+
+    def __init__(self, delegate: BuildTargetEnumerator):
+        """Construct the filter around the delegate enumerator"""
+        self.delegate = delegate
+        self.cli_patterns = []
+        ExcludeTargetAction.register_filter(self)
+
+    def set_cli_patterns(self, patterns: List[str]):
+        """Set the patterns supplied on the command line"""
+        self.cli_patterns = list(patterns)
+
+    def get_patterns(self, builder: "Build") -> List[str]:
+        """Combined exclusion patterns from settings and command line"""
+        setting = builder.get_settings(self.SETTING, "") or ""
+        return setting.split() + self.cli_patterns
+
+    @staticmethod
+    def is_excluded(target: str, patterns: List[str]) -> bool:
+        """Does the target match any of the exclusion patterns"""
+        return any(fnmatch.fnmatchcase(target, pattern) for pattern in patterns)
+
+    def enumerate(self, builder: "Build", context_path: Path) -> EnumeratedContext:
+        """Enumerates with the delegate then removes excluded targets"""
+        targets, path = self.delegate.enumerate(builder, context_path)
+        patterns = self.get_patterns(builder)
+        if not patterns:
+            return targets, path
+        kept = []
+        for target in targets:
+            if self.is_excluded(target, patterns):
+                print(f"[INFO] Excluding target: {target}")
+            else:
+                kept.append(target)
+        return kept, path
 
 
 class BasicBuildTargetEnumerator(BuildTargetEnumerator):
