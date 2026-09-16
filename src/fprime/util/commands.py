@@ -154,6 +154,39 @@ def run_new(
     )
 
 
+def _find_clang_format_file(build) -> Path:
+    """Search for .clang-format file.
+
+    Checks the following locations in order:
+    1. framework_path from build settings (if available)
+    2. Current working directory and parent directories
+
+    Args:
+        build: build object (may be None when running outside a project)
+
+    Returns:
+        Path to the .clang-format file (may not exist, validated later)
+    """
+    # Try framework_path from build settings
+    if build is not None and build.settings is not None:
+        framework_path = build.settings.get("framework_path")
+        if framework_path is not None:
+            candidate = Path(framework_path) / ".clang-format"
+            if candidate.is_file():
+                return candidate
+
+    # Search from cwd upward
+    path = Path.cwd().resolve()
+    while path != path.parent:
+        candidate = path / ".clang-format"
+        if candidate.is_file():
+            return candidate
+        path = path.parent
+
+    # Return default path (will fail validation in ClangFormatter.execute with a helpful message)
+    return Path.cwd() / ".clang-format"
+
+
 def run_code_format(
     build: Build,
     parsed: argparse.Namespace,
@@ -164,7 +197,7 @@ def run_code_format(
     """Runs code formatting using clang-format
 
     Args:
-        build: used to retrieve .clang-format file
+        build: used to retrieve .clang-format file (may be None for libraries)
         parsed: parsed input arguments
         __: unused cmake_args
         ___: unused make_args
@@ -179,7 +212,7 @@ def run_code_format(
     }
     clang_formatter = ClangFormatter(
         "clang-format",
-        build.settings.get("framework_path", Path(".")) / ".clang-format",
+        _find_clang_format_file(build),
         options,
     )
     if not clang_formatter.is_supported():
