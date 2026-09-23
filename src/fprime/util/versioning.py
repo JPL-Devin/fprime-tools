@@ -70,7 +70,7 @@ def main():
         print(python_version)
     except (IOError, VersionException) as exc:
         print(f"[ERROR] Could not detect expected version: {exc}", file=sys.stderr)
-        sys.exit(-1)
+        sys.exit(1)
     sys.exit(0)
 
 

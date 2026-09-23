@@ -48,13 +48,11 @@ test = [
 ]
 dev = [
     "black",
-    "pylama",
     "pylint",
     "pre-commit",
     "sphinx",
     "sphinxcontrib.mermaid",
     "sphinx-rtd-theme",
-    "sphinx-autoapi",
     "sphinx-autoapi",
     "recommonmark",
 ]
