@@ -189,7 +189,7 @@ def test_multi_build_target_enumerator_deduplicates():
 
 
 def test_recursive_multi_build_target_enumerator_deduplicates():
-    """Duplicate sub-directory entries are recursed into once"""
+    """Duplicate sub-directory entries are recursed into once and shared targets are listed once"""
     root_path = ENUMERATOR_DATA_PATH / "DuplicateEntriesEnumerator"
     builder_mock = MagicMock()
     builder_mock.get_build_cache_path.side_effect = lambda path: path

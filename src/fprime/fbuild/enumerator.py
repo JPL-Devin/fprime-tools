@@ -155,7 +155,10 @@ class RecursiveMultiBuildTargetEnumerator(BuildTargetEnumerator):
 
     def enumerate(self, builder: "Build", context_path: Path) -> EnumeratedContext:
         """Recursively enumerates build targets."""
-        enumerated_targets = self.enumerate_helper(builder, context_path)
+        # A target listed by several directories must only run once
+        enumerated_targets = list(
+            dict.fromkeys(self.enumerate_helper(builder, context_path))
+        )
         enumerated_targets = (
             enumerated_targets
             if enumerated_targets
