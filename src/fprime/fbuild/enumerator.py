@@ -99,7 +99,8 @@ class MultiBuildTargetEnumerator(BuildTargetEnumerator):
         build_targets_file = build_cache_path / self.build_file_name
         with open(build_targets_file, "r") as file_handle:
             enumerated_targets = [line.strip() for line in file_handle.readlines()]
-        return enumerated_targets
+        # Older F Prime versions re-append entries on every re-configure; dict preserves first-seen order
+        return list(dict.fromkeys(enumerated_targets))
 
     def enumerate(self, builder: "Build", context_path: Path) -> EnumeratedContext:
         """Enumerates build targets, falling back to the context if not found."""
@@ -139,10 +140,11 @@ class RecursiveMultiBuildTargetEnumerator(BuildTargetEnumerator):
             build_cache_path = builder.get_build_cache_path(context_path)
             sub_directories_file = build_cache_path / self.SUBDIRECTORIES_FILE
             with open(sub_directories_file, "r") as file_handle:
-                for sub_dir in file_handle.readlines():
+                sub_dirs = [sub_dir.strip() for sub_dir in file_handle.readlines()]
+                for sub_dir in dict.fromkeys(sub_dirs):
                     # Each line is a new path relative to the current context
                     # We need to construct the full path for the recursive call
-                    full_sub_dir_path = (build_cache_path / sub_dir.strip()).resolve()
+                    full_sub_dir_path = (build_cache_path / sub_dir).resolve()
                     enumerated_targets.extend(
                         self.enumerate_helper(builder, full_sub_dir_path)
                     )

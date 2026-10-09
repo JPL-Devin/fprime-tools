@@ -178,6 +178,30 @@ def test_recursive_enumerator_fallback_on_file_not_found():
     )
 
 
+def test_multi_build_target_enumerator_deduplicates():
+    """Duplicate entries (re-appended by older F Prime re-configures) are enumerated once, in order"""
+    data_path = ENUMERATOR_DATA_PATH / "DuplicateEntriesEnumerator"
+    builder_mock = MagicMock()
+    builder_mock.get_build_cache_path.return_value = data_path
+
+    enumerator = MultiBuildTargetEnumerator()
+    assert enumerator.enumerate(builder_mock, data_path)[0] == ["targetA", "targetB"]
+
+
+def test_recursive_multi_build_target_enumerator_deduplicates():
+    """Duplicate sub-directory entries are recursed into once"""
+    root_path = ENUMERATOR_DATA_PATH / "DuplicateEntriesEnumerator"
+    builder_mock = MagicMock()
+    builder_mock.get_build_cache_path.side_effect = lambda path: path
+
+    enumerator = RecursiveMultiBuildTargetEnumerator()
+    assert enumerator.enumerate(builder_mock, root_path)[0] == [
+        "targetA",
+        "targetB",
+        "sub1_target",
+    ]
+
+
 def test_specific_build_target_enumerator_constructor():
     """Test SpecificBuildTargetEnumerator returns constructor-provided targets"""
     targets = ["specific_target1", "specific_target2"]
